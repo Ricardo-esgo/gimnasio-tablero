@@ -1,0 +1,54 @@
+/* Valores base del tablero (colores, espacios y tipografía). Claro y oscuro según el sistema. */
+:root {
+  color-scheme: light dark;
+  --font-anthropic-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-anthropic-serif: Georgia, "Times New Roman", serif;
+  --color-bg: #f4f4f2;
+  --color-panel: #ffffff;
+  --color-fg: #191919;
+  --color-fg-muted: #666666;
+  --color-border-line: #e2e2e0;
+  --color-ok: #0aac23;
+  --color-warn: #f2a600;
+  --color-bad: #dc3c3d;
+  --cds-text-secondary: #666666;
+  --cds-chart-grid: #e7e7e7;
+  --cds-chart-axis: #c2c2c2;
+  --cds-surface-popover: #ffffff;
+  --cds-border: #d6d6d4;
+  --cds-shadow-popover: 0 4px 14px rgba(0, 0, 0, 0.14);
+  --cds-gap-xs: 4px;
+  --cds-gap-sm: 8px;
+  --cds-gap-md: 12px;
+  --cds-gap-lg: 16px;
+  --cds-pad-sm: 6px;
+  --cds-pad-md: 10px;
+  --cds-pad-lg: 14px;
+  --cds-radius: 8px;
+  --cds-font-size-caption: 12px;
+  --cds-font-size-body: 14px;
+  --cds-font-size-heading: 15px;
+  --cds-font-weight-medium: 500;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0f0f0f;
+    --color-panel: #191919;
+    --color-fg: #efefef;
+    --color-fg-muted: #9c9c9c;
+    --color-border-line: #303030;
+    --color-ok: #0aac23;
+    --color-warn: #fbb315;
+    --color-bad: #eb6263;
+    --cds-text-secondary: #9c9c9c;
+    --cds-chart-grid: #303030;
+    --cds-chart-axis: #474747;
+    --cds-surface-popover: #232323;
+    --cds-border: #3a3a3a;
+    --cds-shadow-popover: 0 4px 14px rgba(0, 0, 0, 0.5);
+  }
+}
+html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); font-size: var(--cds-font-size-body); }
+.dash-root { max-width: 1280px; margin: 0 auto; padding: 16px; }
+.dash-select { font: inherit; font-size: var(--cds-font-size-body); color: var(--color-fg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: 7px 10px; }
+.dash-select:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 2px; }

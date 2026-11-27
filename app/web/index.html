@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablero financiero del gimnasio</title>
+<link rel="stylesheet" href="tema.css">
+<link rel="stylesheet" href="page.css">
+</head>
+<body>
+<div id="dash-root" class="dash-root">
+<div class="fg">
+  <section class="fg-login" id="login" aria-labelledby="h-login">
+    <div class="fg-card fg-logincard">
+      <h1 class="fg-h" id="h-login">Tablero financiero del gimnasio</h1>
+      <p class="fg-cap">Inicia sesión para ver el tablero.</p>
+      <form class="fg-form" id="formLogin">
+        <label for="l-user">Usuario</label>
+        <input class="fg-in" id="l-user" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        <label for="l-pass">Contraseña</label>
+        <input class="fg-in" id="l-pass" type="password" autocomplete="current-password" required>
+        <p class="fg-msg fg-msg--bad" id="msg-login-bad" role="alert" hidden>Usuario o contraseña incorrectos.</p>
+        <p class="fg-msg fg-msg--bad" id="msg-login-espera" role="alert" hidden>Demasiados intentos. Espera un minuto e inténtalo de nuevo.</p>
+        <p class="fg-msg fg-msg--bad" id="msg-login-err" role="alert" hidden>No se pudo comprobar el acceso. Revisa que el Excel esté disponible e inténtalo otra vez.</p>
+        <div class="fg-actions">
+          <button class="fg-btn fg-btn--pri" id="btnLogin" type="submit">Entrar</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div class="fg-app" id="app" hidden>
+  <div class="fg-user">
+    <span>Usuario: <b data-draw="lblUsuario">—</b></span>
+    <button type="button" class="fg-btn fg-btn--sm" id="btnSalir">Cerrar sesión</button>
+  </div>
+  <div class="fg-top">
+    <nav class="fg-tabs" role="tablist" aria-label="Secciones">
+      <button type="button" role="tab" class="fg-tabbtn is-on" id="btn-resumen" aria-selected="true" aria-controls="tab-resumen">Indicador de performance</button>
+      <button type="button" role="tab" class="fg-tabbtn" id="btn-metas" aria-selected="false" aria-controls="tab-metas">Metas</button>
+    </nav>
+  </div>
+
+  <section class="fg-tab" id="tab-resumen" role="tabpanel" aria-labelledby="btn-resumen">
+    <div class="fg-filters">
+      <label class="fg-f fg-f--vista" for="selVista"><span>Gráfico</span>
+        <select class="dash-select" id="selVista" aria-label="Gráfico">
+          <option value="resumen-ejecutivo" selected>Resumen ejecutivo</option>
+          <option value="resumen-anual">Resumen anual</option>
+          <option value="ingresos-relativos">Ingresos relativos</option>
+          <option value="detalle-ventas">Detalle de ventas</option>
+          <option value="detalle-gastos">Detalle de gastos</option>
+        </select>
+      </label>
+      <label class="fg-f" for="selPeriodo"><span data-draw="lblPeriodo">—</span>
+        <select class="dash-select" id="selPeriodo" data-draw="selPeriodo" aria-label="Periodo (mes y año)"></select>
+      </label>
+    </div>
+
+    <div class="fg-views">
+      <section class="fg-view" id="vista-resumen-ejecutivo" aria-label="Resumen ejecutivo">
+        <div class="fg-main">
+          <div class="fg-left">
+            <section class="fg-card fg-res" aria-labelledby="h-res">
+              <div class="fg-reshead">
+                <h2 class="fg-h" id="h-res">Resultado <span data-draw="res_prov">—</span></h2>
+                <div class="fg-pill" data-draw="res_pill">—</div>
+              </div>
+              <p class="fg-resnum" data-draw="res_monto">—</p>
+              <p class="fg-cap" id="res-cap-prov" hidden>Ingresos menos gastos registrados al momento.</p>
+              <p class="fg-cap" id="res-cap-final" hidden>Ingresos menos gastos del mes concluido.</p>
+              <p class="fg-cap" id="res-cap-sin" hidden>Este mes no tiene gastos capturados, así que no se calcula el resultado.</p>
+              <dl class="fg-stats">
+                <div><dt>Ingresos <span data-draw="res_momento">—</span></dt><dd data-draw="res_ing">—</dd></div>
+                <div><dt>Gastos <span data-draw="res_momento">—</span></dt><dd data-draw="res_gas">—</dd></div>
+              </dl>
+            </section>
+            <section class="fg-card" aria-labelledby="h-edo">
+              <h2 class="fg-h" id="h-edo">Ingresos, gastos y resultado</h2>
+              <label class="fg-chk" for="chk-exp-mes"><input type="checkbox" class="js-expansion" id="chk-exp-mes" checked><span>Incluir gastos de expansión</span></label>
+              <p class="fg-cap" data-draw="exp_nota_mes">—</p>
+              <div class="fg-chart dash-skeleton" id="chartEstado" data-draw="chartEstado"></div>
+            </section>
+          </div>
+          <div class="fg-side-col">
+            <section class="fg-card fg-side" aria-labelledby="h-det2">
+              <h2 class="fg-h" id="h-det2">Detalle del estado financiero</h2>
+          <div class="fg-scroll">
+            <table class="fg-table" data-row-key="lado,concepto">
+              <thead><tr><th>Concepto</th><th class="num">Monto</th></tr></thead>
+              <tbody data-draw="tbodyEstado"></tbody>
+            </table>
+          </div>
+            </section>
+          </div>
+        </div>
+        <details class="fg-foot">
+          <summary>Cómo se calculan las cifras</summary>
+          <div class="fg-desc">
+            <p>Muestra si el mes ha dejado ganancia: ingresos menos gastos.</p>
+            <ul>
+              <li>Resultado provisional: mientras el mes sigue en curso, o si sus gastos están incompletos, usa los ingresos y gastos registrados al momento.</li>
+              <li>Resultado del mes: en un mes concluido con gastos completos, es la ganancia o pérdida definitiva.</li>
+              <li>Otros ingresos agrupa consultas y excedentes de caja. Los gastos conservan el nombre de categoría que tienen en el Excel.</li>
+              <li>Gastos operativos: Nómina, Renta, Servicios, Insumos y Mercancía (se reconocen aunque cambien mayúsculas, acentos o espacios). Cualquier otra categoría del Excel es un gasto de expansión.</li>
+              <li>La gráfica muestra Ingresos, Gastos operativos y Resultado. Con "Incluir gastos de expansión" activo agrega la barra de Gastos de expansión, y el resultado, la gráfica y el semáforo restan todos los gastos. Sin el check, restan solo los operativos.</li>
+              <li>El detalle del estado financiero muestra siempre todos los gastos, agrupados por título, con los dos resultados.</li>
+              <li>Ingresos de enero a abril: hoja Detalle Ingresos del Excel de contabilidad, columna Total. Ingresos de noviembre: cierres de caja de los chats de WhatsApp, hasta el 25 de noviembre.</li>
+            </ul>
+          </div>
+          <p class="fg-notes-h">Notas sobre los datos</p>
+          <ul class="fg-notes">
+            <li class="js-aviso-parcial" hidden>Los gastos de este mes están incompletos: solo incluyen gastos menores de la libreta, como agua y papel de baño. Por eso el resultado es provisional.</li>
+            <li class="js-aviso-sin" hidden>Este mes no tiene gastos capturados, por eso no se calcula el resultado.</li>
+            <li>Gastos de enero a marzo: hoja Detalle Egresos del Excel. Abril no tiene gastos capturados.</li>
+            <li>Las cifras de enero a marzo pueden diferir poco de la hoja Estado Financiero, que se capturó a mano.</li>
+          </ul>
+        </details>
+      </section>
+      <section class="fg-view is-off" id="vista-ingresos-relativos" aria-label="Ingresos relativos">
+        <div class="fg-main">
+          <div class="fg-left">
+          <section class="fg-card fg-sem" aria-label="Semáforo de la meta">
+            <div class="fg-semhead">
+              <div class="fg-pill" data-draw="pill">—</div>
+              <p class="fg-big"><span data-draw="s_pct">—</span> <span class="fg-bigsub">del ritmo esperado</span></p>
+            </div>
+          </section>
+          <section class="fg-card" aria-labelledby="h-rel">
+            <h2 class="fg-h" id="h-rel">Ingresos relativos</h2>
+            <p class="fg-cap">Ingresos acumulados del mes contra el ritmo de la meta. Último cierre registrado: día <b data-draw="u_dia">—</b>.</p>
+            <div class="fg-chart dash-skeleton" id="chartAcum" data-draw="chartAcum"></div>
+          </section>
+          </div>
+        <section class="fg-card fg-side" aria-labelledby="h-det">
+          <h2 class="fg-h" id="h-det">Detalle del estado financiero</h2>
+          <div class="fg-scroll">
+            <table class="fg-table" data-row-key="lado,concepto">
+              <thead><tr><th>Concepto</th><th class="num">Monto</th></tr></thead>
+              <tbody data-draw="tbodyEstado"></tbody>
+            </table>
+          </div>
+        </section>
+        </div>
+      <details class="fg-foot">
+        <summary>Cómo se calculan las cifras</summary>
+        <div class="fg-desc">
+          <p>Muestra los ingresos acumulados día a día del mes elegido contra el ritmo de la meta, que es la meta del mes repartida por igual entre sus días.</p>
+          <ul>
+            <li>Porcentaje del semáforo = ingresos registrados ÷ (meta del mes ÷ días del mes × días transcurridos). Verde desde 100%, amarillo de 85% a 99.9% y rojo por debajo de 85%.</li>
+            <li>En el mes en curso, los días transcurridos son los del calendario, incluido hoy, aunque el cierre de hoy aún no esté registrado. En un mes pasado cuentan todos los días.</li>
+            <li>Meta del mes: la que guardes en la pestaña Metas. Si no hay, se usa la estándar.</li>
+            <li>La meta de socios se guarda en la pestaña Metas, pero todavía no se compara porque faltan los datos de socios activos.</li>
+            <li>Ingresos de enero a abril: hoja Detalle Ingresos del Excel de contabilidad, columna Total. Ingresos de noviembre: cierres de caja de los chats de WhatsApp, hasta el 25 de noviembre. Otros ingresos agrupa consultas y excedentes de caja.</li>
+          </ul>
+        </div>
+        <p class="fg-notes-h">Notas sobre los datos</p>
+        <ul class="fg-notes">
+          <li class="js-aviso-parcial" hidden>Los gastos de este mes están incompletos: solo incluyen gastos menores de la libreta, como agua y papel de baño. El resultado del detalle del estado financiero es provisional.</li>
+          <li class="js-aviso-sin" hidden>Este mes no tiene gastos capturados, por eso el detalle del estado financiero no muestra resultado.</li>
+          <li>Egresos de enero a marzo: hoja Detalle Egresos del Excel. Abril no tiene egresos capturados.</li>
+          <li>Las cifras de enero a marzo pueden diferir poco de la hoja Estado Financiero, que se capturó a mano.</li>
+        </ul>
+      </details>
+      </section>
+      <section class="fg-view is-off" id="vista-resumen-anual" aria-label="Resumen anual">
+        <div class="fg-main">
+          <div class="fg-left">
+            <section class="fg-card fg-res" aria-labelledby="h-anual">
+              <div class="fg-reshead">
+                <h2 class="fg-h" id="h-anual">Resultado <span data-draw="an_titulo">—</span> <b data-draw="an_anio">—</b></h2>
+                <div class="fg-pill" data-draw="an_pill">—</div>
+              </div>
+              <p class="fg-resnum" data-draw="an_monto">—</p>
+              <p class="fg-cap" id="an-cap-prov" hidden>Suma de los resultados mensuales: ingresos menos gastos de cada mes, con lo registrado al momento.</p>
+              <p class="fg-cap" id="an-cap-final" hidden>Suma de los resultados mensuales de los 12 meses del año.</p>
+              <p class="fg-cap" id="an-cap-sin" hidden>Ningún mes del año tiene gastos capturados, así que no se calcula el resultado.</p>
+              <dl class="fg-stats">
+                <div><dt>Meses que suman</dt><dd data-draw="an_suman">—</dd></div>
+                <div><dt>Meses sin gastos capturados</dt><dd data-draw="an_sin">—</dd></div>
+              </dl>
+            </section>
+            <section class="fg-card" aria-labelledby="h-anual-g">
+              <h2 class="fg-h" id="h-anual-g">Resultado por mes</h2>
+              <label class="fg-chk" for="chk-exp-anio"><input type="checkbox" class="js-expansion" id="chk-exp-anio" checked><span>Incluir gastos de expansión</span></label>
+              <p class="fg-cap" data-draw="exp_nota_anio">—</p>
+              <div class="fg-chart dash-skeleton" id="chartAnual" data-draw="chartAnual"></div>
+            </section>
+          </div>
+          <section class="fg-card fg-side" aria-labelledby="h-anual-d">
+            <h2 class="fg-h" id="h-anual-d">Detalle por mes</h2>
+            <div class="fg-scroll">
+              <table class="fg-table" data-row-key="mes">
+                <thead><tr><th class="mes">Mes</th><th class="num">Ingresos</th><th class="num">Gastos operativos</th><th class="num">Gastos de expansión</th><th class="num">Resultado</th></tr></thead>
+                <tbody data-draw="tbodyAnual"></tbody>
+                <tfoot><tr><th scope="row" class="mes">Total</th><td class="num" data-draw="an_t_ing">—</td><td class="num" data-draw="an_t_oper">—</td><td class="num" data-draw="an_t_exp">—</td><td class="num" data-draw="an_t_res">—</td></tr></tfoot>
+              </table>
+            </div>
+            <p class="fg-cap">Los gastos se muestran siempre completos; la columna Resultado resta los de expansión solo con el check activo.</p>
+            <p class="fg-legend fg-legend--tabla"><span><i class="fg-sw fg-sw--def"></i>✓ Mes definitivo</span><span><i class="fg-sw fg-sw--prov2"></i>◔ Mes provisional</span></p>
+          </section>
+        </div>
+        <details class="fg-foot">
+          <summary>Cómo se calculan las cifras</summary>
+          <div class="fg-desc">
+            <p>Muestra si el año va dejando ganancia: suma los resultados mensuales del resumen ejecutivo de todos los meses del año del periodo elegido.</p>
+            <ul>
+              <li>El check "Incluir gastos de expansión" funciona igual que en el resumen ejecutivo: apagado, cada mes resta solo los gastos operativos (Nómina, Renta, Servicios, Insumos y Mercancía), y la gráfica, la columna Resultado, el total y el semáforo se recalculan. Las columnas de gastos operativos y de expansión se muestran siempre completas.</li>
+              <li>Cada mes aporta sus ingresos menos sus gastos. Por ejemplo, si enero cerró en −$2,470 y febrero en $2,154, el resultado del año a fin de febrero es −$316.</li>
+              <li>Resultado provisional del año: mientras no estén los 12 meses con resultado completo. El mes en curso, o un mes con gastos incompletos, suma como provisional.</li>
+              <li>Un mes con ingresos pero sin gastos capturados no suma, porque su resultado no existe. Aparece marcado en la gráfica y la tabla.</li>
+              <li>El semáforo es verde si la suma es ganancia y rojo si es pérdida.</li>
+              <li>Ingresos de enero a abril: hoja Detalle Ingresos del Excel de contabilidad, columna Total. Ingresos de noviembre: cierres de caja de los chats de WhatsApp, hasta el 25 de noviembre.</li>
+              <li>Gastos de enero a marzo: hoja Detalle Egresos del Excel. Los de noviembre solo incluyen gastos menores de la libreta, como agua y papel de baño.</li>
+            </ul>
+          </div>
+        </details>
+      </section>
+      <section class="fg-view is-off" id="vista-detalle-ventas" aria-label="Detalle de ventas">
+        <div class="fg-filters fg-filters--seg">
+          <label class="fg-f" for="selSegrega"><span>Segregar por</span>
+            <select class="dash-select" id="selSegrega" aria-label="Segregar las ventas por">
+              <option value="pago" selected>Tipo de pago</option>
+              <option value="turno">Turno</option>
+            </select>
+          </label>
+        </div>
+        <div class="fg-main">
+        <div class="fg-left">
+        <section class="fg-card fg-pagos" aria-label="Ingresos del mes segregados">
+          <div class="fg-pagos-g">
+            <div class="fg-pago">
+              <p class="fg-pago-l">Total de ingresos</p>
+              <p class="fg-pago-v fg-pago-v--total" data-draw="pv_total" data-source="ventas_resumen" data-field="total" data-row="0">—</p>
+            </div>
+            <div class="fg-pago">
+              <p class="fg-pago-l"><span class="js-seg-pago">Pagos electrónicos</span><span class="js-seg-turno" hidden>Turno matutino</span></p>
+              <p class="fg-pago-v" data-draw="pv_a_monto" data-source="ventas_resumen" data-field="a_monto" data-row="0">—</p>
+              <p class="fg-pago-p"><b data-draw="pv_a_pct" data-source="ventas_resumen" data-field="a_pct" data-row="0">—</b><span class="fg-pago-sub"> del total</span></p>
+            </div>
+            <div class="fg-pago">
+              <p class="fg-pago-l"><span class="js-seg-pago">Pagos en efectivo</span><span class="js-seg-turno" hidden>Turno vespertino</span></p>
+              <p class="fg-pago-v" data-draw="pv_b_monto" data-source="ventas_resumen" data-field="b_monto" data-row="0">—</p>
+              <p class="fg-pago-p"><b data-draw="pv_b_pct" data-source="ventas_resumen" data-field="b_pct" data-row="0">—</b><span class="fg-pago-sub"> del total</span></p>
+            </div>
+          </div>
+          <p class="fg-pago-otros" id="pv-otros" data-draw="pv_otros" data-source="ventas_resumen" data-field="otros_texto" data-row="0" hidden>—</p>
+        </section>
+        <section class="fg-card" aria-labelledby="h-pagos">
+          <h2 class="fg-h" id="h-pagos"><span class="js-seg-pago">Forma de pago de cada tipo de ingreso</span><span class="js-seg-turno" hidden>Ventas por turno de cada tipo de ingreso</span></h2>
+          <p class="fg-cap"><span class="js-seg-pago">Cada rebanada es un tipo de ingreso pagado en efectivo o con medios electrónicos (tarjeta o transferencia, con rayas). Las de cada forma de pago van juntas y el anillo exterior las agrupa.</span><span class="js-seg-turno" hidden>Cada rebanada es un tipo de ingreso vendido en el turno matutino o en el vespertino (con rayas). Las de cada turno van juntas y el anillo exterior las agrupa. Si el mes trae cierres especiales, forman un tercer grupo con rayas cruzadas.</span></p>
+          <div class="fg-chart dash-skeleton" id="chartPagos" data-draw="chartPagos" data-source="ventas_detalle"></div>
+        </section>
+        </div>
+        <section class="fg-card fg-side" aria-labelledby="h-pagos-det">
+          <h2 class="fg-h" id="h-pagos-det">Detalle de ventas</h2>
+          <div class="fg-scroll">
+            <table class="fg-table" data-source="ventas_detalle" data-row-key="clave,concepto">
+              <thead><tr><th data-field="concepto">Concepto</th><th data-field="monto" class="num">Monto</th><th data-field="pct" class="num">% del total</th></tr></thead>
+              <tbody data-draw="tbodyPagos"></tbody>
+            </table>
+          </div>
+        </section>
+        </div>
+        <details class="fg-foot">
+          <summary>Cómo se calculan las cifras</summary>
+          <div class="fg-desc js-seg-pago">
+            <p>Muestra cómo pagaron los clientes en el mes elegido: cuánto de los ingresos entró en efectivo y cuánto por medios electrónicos (tarjeta o transferencia).</p>
+            <ul>
+              <li>Los montos salen de la hoja Detalle Ingresos del Excel: se suman, día por día, las columnas Efectivo y Electrónico de cada venta del mes.</li>
+              <li>Membresías y Mercancías son los tipos que lleva el Excel con ese nombre. Otros agrupa todo lo demás: consultas y excedentes de caja.</li>
+              <li>Pagos en efectivo = membresías + mercancías + otros pagados en efectivo. Pagos electrónicos = lo mismo pagado con medios electrónicos.</li>
+              <li>Total de ingresos = pagos en efectivo + pagos electrónicos.</li>
+              <li>Cada porcentaje = monto ÷ total de ingresos del mes. Los dos grupos suman 100%, y las seis rebanadas de la gráfica también.</li>
+              <li>En el mes en curso solo cuenta lo que ya está registrado en el Excel.</li>
+            </ul>
+          </div>
+          <div class="fg-desc js-seg-turno" hidden>
+            <p>Muestra cómo se reparten las ventas del mes elegido entre los turnos: el matutino y el vespertino.</p>
+            <ul>
+              <li>Los montos salen de la hoja Detalle Ingresos del Excel: se suman las columnas Efectivo y Electrónico de cada venta del mes, agrupadas por la columna Turno.</li>
+              <li>Turno matutino = ventas con turno M. Turno vespertino = ventas con turno V.</li>
+              <li>Los cierres especiales (TM, TD o cualquier otro código) no son ninguno de los dos turnos: se muestran aparte como Otros turnos, y solo aparecen en los meses que los traen.</li>
+              <li>Membresías y Mercancías son los tipos que lleva el Excel con ese nombre. Otros agrupa todo lo demás: consultas y excedentes de caja.</li>
+              <li>Total de ingresos = turno matutino + turno vespertino + otros turnos. Es el mismo total que al segregar por tipo de pago.</li>
+              <li>Cada porcentaje = monto ÷ total de ingresos del mes. Los grupos suman 100%, y todas las rebanadas de la gráfica también.</li>
+              <li>En el mes en curso solo cuenta lo que ya está registrado en el Excel.</li>
+            </ul>
+          </div>
+          <p class="fg-notes-h">Notas sobre los datos</p>
+          <ul class="fg-notes">
+            <li class="js-aviso-desglose" hidden>En este mes hay <b data-draw="pv_sin" data-source="ventas_resumen" data-field="sin_desglosar" data-row="0">—</b> en ventas cuya columna Total es mayor que Efectivo más Electrónico. Esa diferencia no se puede clasificar, así que no entra en esta pantalla y el total puede ser menor al de los demás tableros.</li>
+            <li>Una venta sin dato en Efectivo ni en Electrónico no suma a ningún grupo.</li>
+            <li class="js-seg-turno" hidden>Una venta sin turno en el Excel se cuenta en Otros turnos.</li>
+          </ul>
+        </details>
+      </section>
+      <section class="fg-view is-off" id="vista-detalle-gastos" aria-label="Detalle de gastos">
+        <div class="fg-main">
+        <div class="fg-left">
+        <section class="fg-card fg-pagos" aria-label="Gastos operativos y de expansión">
+          <div class="fg-pagos-g">
+            <div class="fg-pago">
+              <p class="fg-pago-l">Total de gastos</p>
+              <p class="fg-pago-v fg-pago-v--total" data-draw="gv_total" data-source="gastos_resumen" data-field="total" data-row="0">—</p>
+            </div>
+            <div class="fg-pago">
+              <p class="fg-pago-l">Gastos operativos</p>
+              <p class="fg-pago-v" data-draw="gv_oper_monto" data-source="gastos_resumen" data-field="operativos" data-row="0">—</p>
+              <p class="fg-pago-p"><b data-draw="gv_oper_pct" data-source="gastos_resumen" data-field="pct_operativos" data-row="0">—</b><span class="fg-pago-sub"> del total</span></p>
+            </div>
+            <div class="fg-pago">
+              <p class="fg-pago-l">Gastos de expansión</p>
+              <p class="fg-pago-v" data-draw="gv_exp_monto" data-source="gastos_resumen" data-field="expansion" data-row="0">—</p>
+              <p class="fg-pago-p"><b data-draw="gv_exp_pct" data-source="gastos_resumen" data-field="pct_expansion" data-row="0">—</b><span class="fg-pago-sub"> del total</span></p>
+            </div>
+          </div>
+        </section>
+        <section class="fg-card" aria-labelledby="h-gastos">
+          <h2 class="fg-h" id="h-gastos">En qué se va el gasto</h2>
+          <p class="fg-cap">Cada rebanada es una categoría de gasto del Excel. Las de gastos operativos van juntas, y las de gastos de expansión (con rayas) también; el anillo exterior las agrupa.</p>
+          <div class="fg-chart dash-skeleton" id="chartGastos" data-draw="chartGastos" data-source="gastos_mes"></div>
+        </section>
+        </div>
+        <section class="fg-card fg-side" aria-labelledby="h-gastos-det">
+          <h2 class="fg-h" id="h-gastos-det">Detalle de gastos</h2>
+          <div class="fg-scroll">
+            <table class="fg-table" data-source="gastos_mes" data-row-key="clave,concepto">
+              <thead><tr><th data-field="concepto">Concepto</th><th data-field="monto" class="num">Monto</th><th data-field="pct" class="num">% del total</th></tr></thead>
+              <tbody data-draw="tbodyGastos"></tbody>
+            </table>
+          </div>
+        </section>
+        </div>
+        <details class="fg-foot">
+          <summary>Cómo se calculan las cifras</summary>
+          <div class="fg-desc">
+            <p>Muestra en qué se gastó en el mes elegido y qué parte fue gasto operativo, el que mantiene el gimnasio funcionando, y qué parte fue gasto de expansión, el que hace crecer el negocio.</p>
+            <ul>
+              <li>Los montos salen de la hoja Detalle Egresos del Excel: se suman los gastos del mes por categoría (columna tipo). Cada categoría aparece con el nombre que tiene en el Excel, y si agregas una nueva, aparece sola.</li>
+              <li>Gastos operativos: Nómina, Renta, Servicios, Insumos y Mercancía (se reconocen aunque cambien mayúsculas, acentos o espacios). Gastos de expansión: cualquier otra categoría, como Infraestructura o Máquinas.</li>
+              <li>Total de gastos = gastos operativos + gastos de expansión.</li>
+              <li>Cada porcentaje = monto ÷ total de gastos del mes. Los dos grupos suman 100%, y las rebanadas de la gráfica también.</li>
+              <li>Los porcentajes de este tablero no dependen del check "Incluir gastos de expansión" de los resúmenes: aquí siempre se ven los dos grupos.</li>
+              <li>En el mes en curso solo cuenta lo que ya está registrado en el Excel.</li>
+            </ul>
+          </div>
+          <p class="fg-notes-h">Notas sobre los datos</p>
+          <ul class="fg-notes">
+            <li class="js-aviso-parcial" hidden>Los gastos de este mes están incompletos (falta Nómina o Renta), así que los porcentajes pueden cambiar cuando se capture el resto.</li>
+            <li class="js-aviso-sin" hidden>Este mes no tiene gastos capturados, por eso no hay nada que comparar.</li>
+          </ul>
+        </details>
+      </section>
+    </div>
+  </section>
+
+  <section class="fg-tab is-off" id="tab-metas" role="tabpanel" aria-labelledby="btn-metas">
+    <div class="fg-grid2">
+      <section class="fg-card" aria-labelledby="h-std">
+        <h2 class="fg-h" id="h-std">Meta estándar</h2>
+        <p class="fg-cap">Se usa en todos los meses que no tienen una meta propia.</p>
+        <dl class="fg-stats">
+          <div><dt>Meta de ingresos</dt><dd data-draw="std_ing">—</dd></div>
+          <div><dt>Meta de socios activos</dt><dd data-draw="std_soc">—</dd></div>
+        </dl>
+      </section>
+      <section class="fg-card" aria-labelledby="h-como">
+        <h2 class="fg-h" id="h-como">Dónde se cambian las metas</h2>
+        <p class="fg-cap">Las metas se leen de la hoja Metas del Excel. Para cambiarlas, edita esa hoja y guarda el archivo: el tablero se actualiza solo.</p>
+      </section>
+    </div>
+
+    <section class="fg-card" aria-labelledby="h-lista">
+      <h2 class="fg-h" id="h-lista">Metas por mes</h2>
+      <p class="fg-empty" id="metas-vacio" hidden>Todavía no hay metas por mes. Todos los meses usan la meta estándar.</p>
+      <div class="fg-scroll">
+        <table class="fg-table" id="tablaMetas" data-row-key="id">
+          <thead><tr><th>Mes</th><th class="num">Meta de ingresos</th><th class="num">Meta de socios</th></tr></thead>
+          <tbody data-draw="tbodyMetas"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+  </div>
+</div>
+</div>
+<script src="vendor/d3.min.js"></script>
+<script src="shim.js"></script>
+<script src="page.js"></script>
+</body>
+</html>

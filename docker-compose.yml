@@ -1,0 +1,26 @@
+services:
+  tablero:
+    # Imagen publicada en GitHub (ver README). Cambia IMAGEN en .env por la tuya.
+    image: ${IMAGEN:?Define IMAGEN en el archivo .env (por ejemplo ghcr.io/tu-usuario/gimnasio-tablero:latest)}
+    pull_policy: always
+    container_name: tablero-gimnasio
+    restart: unless-stopped
+    # Usuario con el que corre el contenedor. Debe poder LEER la carpeta del Excel.
+    user: "${PUID:-1000}:${PGID:-100}"
+    ports:
+      - "${PUERTO:-8080}:8080"
+    environment:
+      EXCEL_DIR: /datos                              # ruta dentro del contenedor (no se cambia)
+      EXCEL_FILE: ${EXCEL_ARCHIVO:-Data_Base.xlsx}   # nombre del archivo Excel
+      SESSION_SECRET: ${SESSION_SECRET:-}            # texto largo y secreto; sin él, las sesiones se cierran al reiniciar
+      SESSION_HORAS: ${SESSION_HORAS:-12}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}         # true si entras por HTTPS
+      TZ: ${TZ:-America/Mexico_City}
+    volumes:
+      # Ruta de la CARPETA (no del archivo) donde vive el Excel en el servidor. Obligatoria.
+      - ${EXCEL_RUTA_HOST:?Define EXCEL_RUTA_HOST en el archivo .env (carpeta donde está el Excel)}:/datos:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/salud', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
