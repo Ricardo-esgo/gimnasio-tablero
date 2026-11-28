@@ -1,5 +1,5 @@
 /* ---------- Categorías de gasto ---------- */
-/* Los nombres de las categorías son los del Excel y no se renombran. Lo único fijo es qué cuenta como "gasto operativo":
+/* Los nombres de las categorías son los de la base de datos y no se renombran. Lo único fijo es qué cuenta como "gasto operativo":
    Nómina, Renta, Servicios, Insumos y Mercancía, sin importar mayúsculas, acentos ni espacios (NÓMINA, nomina, Mercancia…).
    Todo lo demás es "gasto de expansión". */
 const norm = (t) => String(t === null || t === undefined ? '' : t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -71,7 +71,7 @@ dash.calc('kpi_mes', {
 
 dash.calc('estado_mes', {
   title: 'Estado financiero del mes',
-  description: 'Ingresos por categoría menos gastos (egresos) por categoría del mes elegido. El resultado es provisional si el mes sigue en curso o los gastos están incompletos.',
+  description: 'Ingresos por categoría menos gastos (egresos) por categoría del mes elegido. El resultado es provisional si el mes sigue en curso, los gastos están incompletos (falta Nómina o Renta) o algún cierre de caja del mes sigue sin revisar.',
   inputs: ['ingresos_diarios', 'egresos_mensual', 'mes_activo'],
   fn: (diarios, egresos, activo) => {
     if (!activo.length) return [];
@@ -82,10 +82,11 @@ dash.calc('estado_mes', {
     const suma = (k) => d3.sum(filas, (r) => +r[k]);
     const eg = egresos.filter((r) => r.mes === mes);
     const estado = eg.length ? eg[0].estado : 'sin captura';
+    const sinRevisar = eg.length ? +eg[0].cierres_sin_revisar || 0 : 0;   // cierres de caja del mes aún sin revisar
     const ing = [
       ['Venta de membresías', suma('membresias')],
       ['Venta de mercancías', suma('mercancias')],
-      ['Otros ingresos', suma('consultas') + suma('excedente')],
+      ['Otros ingresos', suma('excedente')],
     ];
     const conMonto = eg.filter((r) => +r.monto !== 0);
     const oper = conMonto.filter((r) => esOper(r.categoria)).sort((x, y) => ordenOper(x.categoria) - ordenOper(y.categoria));
@@ -93,7 +94,7 @@ dash.calc('estado_mes', {
     const totI = d3.sum(ing, (d) => d[1]);
     const totO = d3.sum(oper, (r) => +r.monto);
     const totE = d3.sum(expa, (r) => +r.monto);
-    const fila = (lado, concepto, monto) => ({ lado, concepto, monto, estado_egresos: estado });
+    const fila = (lado, concepto, monto) => ({ lado, concepto, monto, estado_egresos: estado, cierres_sin_revisar: sinRevisar });
     const out = ing.map((d) => fila('Ingresos', d[0], d[1]));
     out.push(fila('Ingresos', 'Total de ingresos', totI));
     if (estado !== 'sin captura') {
@@ -102,7 +103,7 @@ dash.calc('estado_mes', {
       expa.forEach((r) => out.push(fila('Gastos de expansión', r.categoria, +r.monto)));
       out.push(fila('Gastos de expansión', 'Subtotal', totE));
       out.push(fila('Gastos', 'Total de gastos', totO + totE));
-      const prov = !(estado === 'completo' && !enCurso);
+      const prov = !(estado === 'completo' && sinRevisar === 0 && !enCurso);   // completo = Nómina y Renta + todos los cierres revisados
       out.push(Object.assign(fila('Resultado', 'Con todos los gastos', totI - totO - totE), { clave: 'todos', prov }));
       out.push(Object.assign(fila('Resultado', 'Solo con gastos operativos', totI - totO), { clave: 'oper', prov }));
     }
@@ -137,6 +138,7 @@ dash.calc('resultado_mes', {
       en_curso: k.mes === hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0'),
       provisional: !!rT && rT.prov,
       estado_egresos: estado[0].estado_egresos,
+      cierres_sin_revisar: estado[0].cierres_sin_revisar,
     }];
   },
 });
@@ -280,6 +282,7 @@ dash.onData(() => {
   const estadoEg = r ? r.estado_egresos : null;
   document.querySelectorAll('.js-aviso-parcial').forEach((e) => { e.hidden = estadoEg !== 'parcial'; });
   document.querySelectorAll('.js-aviso-sin').forEach((e) => { e.hidden = estadoEg !== 'sin captura'; });
+  document.querySelectorAll('.js-aviso-cierres').forEach((e) => { e.hidden = !(r && estadoEg !== 'sin captura' && r.cierres_sin_revisar > 0); });
   $('res-cap-prov').hidden = !(r && r.resultado !== null && r.provisional);
   $('res-cap-final').hidden = !(r && r.resultado !== null && !r.provisional);
   $('res-cap-sin').hidden = !(r && r.resultado === null);
@@ -617,17 +620,28 @@ $('selVista').addEventListener('change', () => dash.setParams({ vista: $('selVis
 
 /* ---------- Pestañas ---------- */
 
+const TABS = ['resumen', 'metas', 'revision', 'usuarios'];
+const SOLO_ADMIN = ['revision', 'usuarios'];
+let perfil = null;
+const permitida = (n) => !SOLO_ADMIN.includes(n) || perfil === 'admin';
+
 const mostrarTab = (nombre) => {
-  ['resumen', 'metas'].forEach((n) => {
+  if (!permitida(nombre)) nombre = 'resumen';
+  TABS.forEach((n) => {
     $('tab-' + n).classList.toggle('is-off', n !== nombre);
     $('btn-' + n).classList.toggle('is-on', n === nombre);
     $('btn-' + n).setAttribute('aria-selected', n === nombre ? 'true' : 'false');
   });
+  if (window.Admin && (nombre === 'revision' || nombre === 'usuarios' || nombre === 'metas')) window.Admin.activar(nombre);
 };
-['resumen', 'metas'].forEach((n) => {
-  $('btn-' + n).addEventListener('click', () => { mostrarTab(n); dash.setLink(n); });
+TABS.forEach((n) => {
+  $('btn-' + n).addEventListener('click', () => {
+    if (window.Admin && !window.Admin.puedeSalir()) return;
+    mostrarTab(n); dash.setLink(n);
+  });
 });
-mostrarTab(location.hash === '#metas' ? 'metas' : 'resumen');
+const tabInicial = () => { const h = location.hash.replace('#', ''); return TABS.includes(h) && permitida(h) ? h : 'resumen'; };
+mostrarTab(tabInicial());
 
 
 /* ---------- Resumen anual ---------- */
@@ -646,6 +660,7 @@ dash.calc('resultados_anio', {
       const ingresos = d3.sum(diarios.filter((r) => String(r.fecha).slice(0, 7) === mes), (r) => +r.total);
       const eg = egresos.filter((r) => r.mes === mes);
       const estado = eg.length ? eg[0].estado : 'sin captura';
+      const sinRevisar = eg.length ? +eg[0].cierres_sin_revisar || 0 : 0;
       const sinCaptura = estado === 'sin captura';
       const gTodos = sinCaptura ? null : d3.sum(eg, (r) => +r.monto);
       const gOper = sinCaptura ? null : d3.sum(eg.filter((r) => esOper(r.categoria)), (r) => +r.monto);
@@ -656,8 +671,9 @@ dash.calc('resultados_anio', {
         gastos_oper: gOper, gastos_exp: gExp,
         excluidos: eg.filter((r) => !esOper(r.categoria) && +r.monto !== 0).map((r) => r.categoria),
         resultado: gastos === null ? null : ingresos - gastos,
-        provisional: estado !== 'completo' || mes === hoyYm,
+        provisional: estado !== 'completo' || sinRevisar > 0 || mes === hoyYm,
         estado_egresos: estado,
+        cierres_sin_revisar: sinRevisar,
       };
     });
   },
@@ -879,7 +895,7 @@ dash.calc('ventas_detalle', {
 
 dash.calc('ventas_resumen', {
   title: 'Total del mes por grupo',
-  description: 'Total de ingresos del mes y cuánto aportó cada grupo de la característica elegida (los dos primeros se muestran en las tarjetas: electrónico y efectivo, o matutino y vespertino; los otros turnos, si existen, van en una línea aparte), con su porcentaje. El total es la suma de los grupos; si la columna Total del Excel trae más, la diferencia se avisa como "sin desglosar".',
+  description: 'Total de ingresos del mes y cuánto aportó cada grupo de la característica elegida (los dos primeros se muestran en las tarjetas: electrónico y efectivo, o matutino y vespertino; los otros turnos, si existen, van en una línea aparte), con su porcentaje. El total es la suma de los grupos; si el total trae más que el efectivo y el electrónico, la diferencia se avisa como "sin desglosar".',
   inputs: ['ventas_detalle', 'ventas_mes', 'mes_activo'],
   fn: (det, ventas, activo) => {
     if (!activo.length) return [];
@@ -1078,7 +1094,7 @@ const GASTO_GRUPOS = [['operativos', 'Gastos operativos'], ['expansion', 'Gastos
 
 dash.calc('gastos_mes', {
   title: 'Gastos del mes por categoría',
-  description: 'Cada categoría de gasto del mes elegido, con el nombre que tiene en el Excel, separada en gastos operativos (Nómina, Renta, Servicios, Insumos, Mercancía) y gastos de expansión (todo lo demás), con su porcentaje sobre el total de gastos del mes.',
+  description: 'Cada categoría de gasto del mes elegido, con el nombre con que se registró, separada en gastos operativos (Nómina, Renta, Servicios, Insumos, Mercancía) y gastos de expansión (todo lo demás), con su porcentaje sobre el total de gastos del mes.',
   inputs: ['egresos_mensual', 'mes_activo'],
   fn: (egresos, activo) => {
     if (!activo.length) return [];
@@ -1260,7 +1276,7 @@ dash.draw('tbodyGastos', (tb) => {
 });
 
 /* ---------- Acceso ---------- */
-/* El servidor comprueba usuario y contraseña contra la hoja Usuarios del Excel (la contraseña se compara por su SHA-256)
+/* El servidor comprueba usuario y contraseña contra la tabla usuarios (la contraseña se compara por su SHA-256)
    y solo entrega datos a quien tiene sesión. Aquí solo se muestra el formulario o el tablero. */
 
 let sesion = null;
@@ -1269,8 +1285,15 @@ const mensajeLogin = (cual) => { ['bad', 'espera', 'err'].forEach((n) => { $('ms
 
 dash.draw('lblUsuario', (el) => { el.textContent = sesion || '—'; });
 
-const entrar = (nombre) => {
+const entrar = (nombre, perfilUsuario) => {
   sesion = nombre;
+  perfil = perfilUsuario || 'user';
+  SOLO_ADMIN.forEach((n) => { $('btn-' + n).hidden = perfil !== 'admin'; });
+  $('metas-ayuda-admin').hidden = perfil !== 'admin';
+  $('metas-ayuda-user').hidden = perfil === 'admin';
+  $('metas-editor').hidden = perfil !== 'admin';
+  if (window.Admin) window.Admin.iniciar(perfil, nombre);
+  mostrarTab(tabInicial());
   mensajeLogin(null);
   $('login').hidden = true;
   $('app').hidden = false;
@@ -1280,6 +1303,8 @@ const entrar = (nombre) => {
 
 const mostrarLogin = () => {
   sesion = null;
+  perfil = null;
+  if (window.Admin) window.Admin.detener();
   dash.detener();
   $('l-pass').value = '';
   $('app').hidden = true;
@@ -1298,7 +1323,7 @@ $('formLogin').addEventListener('submit', async (ev) => {
       body: JSON.stringify({ usuario: $('l-user').value.trim(), clave: $('l-pass').value }),
     });
     $('l-pass').value = '';
-    if (resp.ok) { const c = await resp.json(); $('l-user').value = ''; entrar(c.usuario); }
+    if (resp.ok) { const c = await resp.json(); $('l-user').value = ''; entrar(c.usuario, c.perfil); }
     else mensajeLogin(resp.status === 401 ? 'bad' : resp.status === 429 ? 'espera' : 'err');
   } catch (e) {
     mensajeLogin('err');
@@ -1317,5 +1342,5 @@ window.addEventListener('dash:sesion-vencida', mostrarLogin);
 /* Al abrir la página: ¿ya hay una sesión válida? */
 fetch('/api/sesion', { credentials: 'same-origin', cache: 'no-store' })
   .then((r) => (r.ok ? r.json() : null))
-  .then((c) => { if (c && c.usuario) entrar(c.usuario); else $('l-user').focus(); })
+  .then((c) => { if (c && c.usuario) entrar(c.usuario, c.perfil); else $('l-user').focus(); })
   .catch(() => {});

@@ -24,7 +24,7 @@
         <input class="fg-in" id="l-pass" type="password" autocomplete="current-password" required>
         <p class="fg-msg fg-msg--bad" id="msg-login-bad" role="alert" hidden>Usuario o contraseña incorrectos.</p>
         <p class="fg-msg fg-msg--bad" id="msg-login-espera" role="alert" hidden>Demasiados intentos. Espera un minuto e inténtalo de nuevo.</p>
-        <p class="fg-msg fg-msg--bad" id="msg-login-err" role="alert" hidden>No se pudo comprobar el acceso. Revisa que el Excel esté disponible e inténtalo otra vez.</p>
+        <p class="fg-msg fg-msg--bad" id="msg-login-err" role="alert" hidden>No se pudo comprobar el acceso. Inténtalo otra vez en un momento.</p>
         <div class="fg-actions">
           <button class="fg-btn fg-btn--pri" id="btnLogin" type="submit">Entrar</button>
         </div>
@@ -41,6 +41,8 @@
     <nav class="fg-tabs" role="tablist" aria-label="Secciones">
       <button type="button" role="tab" class="fg-tabbtn is-on" id="btn-resumen" aria-selected="true" aria-controls="tab-resumen">Indicador de performance</button>
       <button type="button" role="tab" class="fg-tabbtn" id="btn-metas" aria-selected="false" aria-controls="tab-metas">Metas</button>
+      <button type="button" role="tab" class="fg-tabbtn" id="btn-revision" aria-selected="false" aria-controls="tab-revision" hidden>Revisión</button>
+      <button type="button" role="tab" class="fg-tabbtn" id="btn-usuarios" aria-selected="false" aria-controls="tab-usuarios" hidden>Usuarios</button>
     </nav>
   </div>
 
@@ -102,21 +104,22 @@
           <div class="fg-desc">
             <p>Muestra si el mes ha dejado ganancia: ingresos menos gastos.</p>
             <ul>
-              <li>Resultado provisional: mientras el mes sigue en curso, o si sus gastos están incompletos, usa los ingresos y gastos registrados al momento.</li>
-              <li>Resultado del mes: en un mes concluido con gastos completos, es la ganancia o pérdida definitiva.</li>
-              <li>Otros ingresos agrupa consultas y excedentes de caja. Los gastos conservan el nombre de categoría que tienen en el Excel.</li>
-              <li>Gastos operativos: Nómina, Renta, Servicios, Insumos y Mercancía (se reconocen aunque cambien mayúsculas, acentos o espacios). Cualquier otra categoría del Excel es un gasto de expansión.</li>
+              <li>Resultado provisional: mientras el mes sigue en curso, si sus gastos están incompletos (falta Nómina o Renta) o si algún cierre de caja del mes sigue sin revisar, usa los ingresos y gastos registrados al momento.</li>
+              <li>Resultado del mes: en un mes concluido con gastos completos y todos los cierres de caja revisados, es la ganancia o pérdida definitiva.</li>
+              <li>Otros ingresos es el excedente de caja (sobrante o faltante de cada cierre). Los gastos conservan el nombre de categoría con que se registraron.</li>
+              <li>Gastos operativos: Nómina, Renta, Servicios, Insumos y Mercancía (se reconocen aunque cambien mayúsculas, acentos o espacios). Cualquier otra categoría es un gasto de expansión.</li>
               <li>La gráfica muestra Ingresos, Gastos operativos y Resultado. Con "Incluir gastos de expansión" activo agrega la barra de Gastos de expansión, y el resultado, la gráfica y el semáforo restan todos los gastos. Sin el check, restan solo los operativos.</li>
               <li>El detalle del estado financiero muestra siempre todos los gastos, agrupados por título, con los dos resultados.</li>
-              <li>Ingresos de enero a abril: hoja Detalle Ingresos del Excel de contabilidad, columna Total. Ingresos de noviembre: cierres de caja de los chats de WhatsApp, hasta el 25 de noviembre.</li>
+              <li>Los ingresos salen de los cierres de caja: total del cierre = membresías + mercancías + excedente.</li>
             </ul>
           </div>
           <p class="fg-notes-h">Notas sobre los datos</p>
           <ul class="fg-notes">
             <li class="js-aviso-parcial" hidden>Los gastos de este mes están incompletos: solo incluyen gastos menores de la libreta, como agua y papel de baño. Por eso el resultado es provisional.</li>
+            <li class="js-aviso-cierres" hidden>Este mes tiene cierres de caja sin revisar, por eso el resultado es provisional. Se revisan en la pestaña Revisión.</li>
             <li class="js-aviso-sin" hidden>Este mes no tiene gastos capturados, por eso no se calcula el resultado.</li>
-            <li>Gastos de enero a marzo: hoja Detalle Egresos del Excel. Abril no tiene gastos capturados.</li>
-            <li>Las cifras de enero a marzo pueden diferir poco de la hoja Estado Financiero, que se capturó a mano.</li>
+            <li>Los gastos salen de la tabla de egresos registrados.</li>
+            <li>El estado financiero ya no se captura a mano: todas las cifras se calculan desde los cierres y los gastos.</li>
           </ul>
         </details>
       </section>
@@ -154,15 +157,16 @@
             <li>En el mes en curso, los días transcurridos son los del calendario, incluido hoy, aunque el cierre de hoy aún no esté registrado. En un mes pasado cuentan todos los días.</li>
             <li>Meta del mes: la que guardes en la pestaña Metas. Si no hay, se usa la estándar.</li>
             <li>La meta de socios se guarda en la pestaña Metas, pero todavía no se compara porque faltan los datos de socios activos.</li>
-            <li>Ingresos de enero a abril: hoja Detalle Ingresos del Excel de contabilidad, columna Total. Ingresos de noviembre: cierres de caja de los chats de WhatsApp, hasta el 25 de noviembre. Otros ingresos agrupa consultas y excedentes de caja.</li>
+            <li>Los ingresos salen de los cierres de caja: total del cierre = membresías + mercancías + excedente. Otros ingresos es el excedente de caja.</li>
           </ul>
         </div>
         <p class="fg-notes-h">Notas sobre los datos</p>
         <ul class="fg-notes">
           <li class="js-aviso-parcial" hidden>Los gastos de este mes están incompletos: solo incluyen gastos menores de la libreta, como agua y papel de baño. El resultado del detalle del estado financiero es provisional.</li>
+          <li class="js-aviso-cierres" hidden>Este mes tiene cierres de caja sin revisar, por eso el resultado del detalle del estado financiero es provisional.</li>
           <li class="js-aviso-sin" hidden>Este mes no tiene gastos capturados, por eso el detalle del estado financiero no muestra resultado.</li>
-          <li>Egresos de enero a marzo: hoja Detalle Egresos del Excel. Abril no tiene egresos capturados.</li>
-          <li>Las cifras de enero a marzo pueden diferir poco de la hoja Estado Financiero, que se capturó a mano.</li>
+          <li>Los egresos salen de la tabla de egresos registrados.</li>
+          <li>El estado financiero ya no se captura a mano: todas las cifras se calculan desde los cierres y los gastos.</li>
         </ul>
       </details>
       </section>
@@ -210,11 +214,11 @@
             <ul>
               <li>El check "Incluir gastos de expansión" funciona igual que en el resumen ejecutivo: apagado, cada mes resta solo los gastos operativos (Nómina, Renta, Servicios, Insumos y Mercancía), y la gráfica, la columna Resultado, el total y el semáforo se recalculan. Las columnas de gastos operativos y de expansión se muestran siempre completas.</li>
               <li>Cada mes aporta sus ingresos menos sus gastos. Por ejemplo, si enero cerró en −$2,470 y febrero en $2,154, el resultado del año a fin de febrero es −$316.</li>
-              <li>Resultado provisional del año: mientras no estén los 12 meses con resultado completo. El mes en curso, o un mes con gastos incompletos, suma como provisional.</li>
+              <li>Resultado provisional del año: mientras no estén los 12 meses con resultado completo. El mes en curso, un mes con gastos incompletos o un mes con algún cierre de caja sin revisar suma como provisional.</li>
               <li>Un mes con ingresos pero sin gastos capturados no suma, porque su resultado no existe. Aparece marcado en la gráfica y la tabla.</li>
               <li>El semáforo es verde si la suma es ganancia y rojo si es pérdida.</li>
-              <li>Ingresos de enero a abril: hoja Detalle Ingresos del Excel de contabilidad, columna Total. Ingresos de noviembre: cierres de caja de los chats de WhatsApp, hasta el 25 de noviembre.</li>
-              <li>Gastos de enero a marzo: hoja Detalle Egresos del Excel. Los de noviembre solo incluyen gastos menores de la libreta, como agua y papel de baño.</li>
+              <li>Los ingresos salen de los cierres de caja: total del cierre = membresías + mercancías + excedente.</li>
+              <li>Un mes se considera completo cuando sus gastos incluyen Nómina y Renta y además todos sus cierres de caja están revisados (pestaña Revisión). Si falta algo de eso, su resultado es provisional.</li>
             </ul>
           </div>
         </details>
@@ -270,31 +274,29 @@
           <div class="fg-desc js-seg-pago">
             <p>Muestra cómo pagaron los clientes en el mes elegido: cuánto de los ingresos entró en efectivo y cuánto por medios electrónicos (tarjeta o transferencia).</p>
             <ul>
-              <li>Los montos salen de la hoja Detalle Ingresos del Excel: se suman, día por día, las columnas Efectivo y Electrónico de cada venta del mes.</li>
-              <li>Membresías y Mercancías son los tipos que lleva el Excel con ese nombre. Otros agrupa todo lo demás: consultas y excedentes de caja.</li>
+              <li>Los montos salen de los cierres del mes: se suman, día por día, el efectivo y el electrónico de membresías, mercancías y excedente.</li>
+              <li>Membresías, Mercancías y Otros (el excedente de caja) son los tres montos de cada cierre.</li>
               <li>Pagos en efectivo = membresías + mercancías + otros pagados en efectivo. Pagos electrónicos = lo mismo pagado con medios electrónicos.</li>
               <li>Total de ingresos = pagos en efectivo + pagos electrónicos.</li>
               <li>Cada porcentaje = monto ÷ total de ingresos del mes. Los dos grupos suman 100%, y las seis rebanadas de la gráfica también.</li>
-              <li>En el mes en curso solo cuenta lo que ya está registrado en el Excel.</li>
+              <li>En el mes en curso solo cuenta lo que ya está registrado.</li>
             </ul>
           </div>
           <div class="fg-desc js-seg-turno" hidden>
             <p>Muestra cómo se reparten las ventas del mes elegido entre los turnos: el matutino y el vespertino.</p>
             <ul>
-              <li>Los montos salen de la hoja Detalle Ingresos del Excel: se suman las columnas Efectivo y Electrónico de cada venta del mes, agrupadas por la columna Turno.</li>
+              <li>Los montos salen de los cierres del mes, agrupados por su turno.</li>
               <li>Turno matutino = ventas con turno M. Turno vespertino = ventas con turno V.</li>
               <li>Los cierres especiales (TM, TD o cualquier otro código) no son ninguno de los dos turnos: se muestran aparte como Otros turnos, y solo aparecen en los meses que los traen.</li>
-              <li>Membresías y Mercancías son los tipos que lleva el Excel con ese nombre. Otros agrupa todo lo demás: consultas y excedentes de caja.</li>
+              <li>Membresías, Mercancías y Otros (el excedente de caja) son los tres montos de cada cierre.</li>
               <li>Total de ingresos = turno matutino + turno vespertino + otros turnos. Es el mismo total que al segregar por tipo de pago.</li>
               <li>Cada porcentaje = monto ÷ total de ingresos del mes. Los grupos suman 100%, y todas las rebanadas de la gráfica también.</li>
-              <li>En el mes en curso solo cuenta lo que ya está registrado en el Excel.</li>
+              <li>En el mes en curso solo cuenta lo que ya está registrado.</li>
             </ul>
           </div>
           <p class="fg-notes-h">Notas sobre los datos</p>
           <ul class="fg-notes">
-            <li class="js-aviso-desglose" hidden>En este mes hay <b data-draw="pv_sin" data-source="ventas_resumen" data-field="sin_desglosar" data-row="0">—</b> en ventas cuya columna Total es mayor que Efectivo más Electrónico. Esa diferencia no se puede clasificar, así que no entra en esta pantalla y el total puede ser menor al de los demás tableros.</li>
-            <li>Una venta sin dato en Efectivo ni en Electrónico no suma a ningún grupo.</li>
-            <li class="js-seg-turno" hidden>Una venta sin turno en el Excel se cuenta en Otros turnos.</li>
+            <li class="js-aviso-desglose" hidden>En este mes hay <b data-draw="pv_sin" data-source="ventas_resumen" data-field="sin_desglosar" data-row="0">—</b> en ventas con total mayor que efectivo más electrónico. Esa diferencia no se puede clasificar, así que no entra en esta pantalla y el total puede ser menor al de los demás tableros.</li>
           </ul>
         </details>
       </section>
@@ -321,7 +323,7 @@
         </section>
         <section class="fg-card" aria-labelledby="h-gastos">
           <h2 class="fg-h" id="h-gastos">En qué se va el gasto</h2>
-          <p class="fg-cap">Cada rebanada es una categoría de gasto del Excel. Las de gastos operativos van juntas, y las de gastos de expansión (con rayas) también; el anillo exterior las agrupa.</p>
+          <p class="fg-cap">Cada rebanada es una categoría de gasto. Las de gastos operativos van juntas, y las de gastos de expansión (con rayas) también; el anillo exterior las agrupa.</p>
           <div class="fg-chart dash-skeleton" id="chartGastos" data-draw="chartGastos" data-source="gastos_mes"></div>
         </section>
         </div>
@@ -340,12 +342,12 @@
           <div class="fg-desc">
             <p>Muestra en qué se gastó en el mes elegido y qué parte fue gasto operativo, el que mantiene el gimnasio funcionando, y qué parte fue gasto de expansión, el que hace crecer el negocio.</p>
             <ul>
-              <li>Los montos salen de la hoja Detalle Egresos del Excel: se suman los gastos del mes por categoría (columna tipo). Cada categoría aparece con el nombre que tiene en el Excel, y si agregas una nueva, aparece sola.</li>
+              <li>Los montos salen de los egresos registrados: se suman los gastos del mes por categoría (tipo). Cada categoría aparece con el nombre con que se registró, y si agregas una nueva, aparece sola.</li>
               <li>Gastos operativos: Nómina, Renta, Servicios, Insumos y Mercancía (se reconocen aunque cambien mayúsculas, acentos o espacios). Gastos de expansión: cualquier otra categoría, como Infraestructura o Máquinas.</li>
               <li>Total de gastos = gastos operativos + gastos de expansión.</li>
               <li>Cada porcentaje = monto ÷ total de gastos del mes. Los dos grupos suman 100%, y las rebanadas de la gráfica también.</li>
               <li>Los porcentajes de este tablero no dependen del check "Incluir gastos de expansión" de los resúmenes: aquí siempre se ven los dos grupos.</li>
-              <li>En el mes en curso solo cuenta lo que ya está registrado en el Excel.</li>
+              <li>En el mes en curso solo cuenta lo que ya está registrado.</li>
             </ul>
           </div>
           <p class="fg-notes-h">Notas sobre los datos</p>
@@ -370,7 +372,8 @@
       </section>
       <section class="fg-card" aria-labelledby="h-como">
         <h2 class="fg-h" id="h-como">Dónde se cambian las metas</h2>
-        <p class="fg-cap">Las metas se leen de la hoja Metas del Excel. Para cambiarlas, edita esa hoja y guarda el archivo: el tablero se actualiza solo.</p>
+        <p class="fg-cap" id="metas-ayuda-user">Las metas las cambia un administrador. Si necesitas ajustar una, pídeselo.</p>
+        <p class="fg-cap" id="metas-ayuda-admin" hidden>Como administrador puedes cambiar las metas en la sección de abajo, “Editar metas”. El tablero se actualiza solo.</p>
       </section>
     </div>
 
@@ -384,12 +387,58 @@
         </table>
       </div>
     </section>
+
+    <section class="fg-card" id="metas-editor" aria-labelledby="h-editar-metas" hidden>
+      <h2 class="fg-h" id="h-editar-metas">Editar metas</h2>
+      <p class="fg-cap">Una fila por periodo: “estandar” o un mes AAAA-MM. Deja vacía una meta para no fijarla.</p>
+      <div id="adm-metas"></div>
+    </section>
+  </section>
+
+  <section class="fg-tab is-off" id="tab-revision" role="tabpanel" aria-labelledby="btn-revision">
+    <section class="fg-card" aria-labelledby="h-revision">
+      <div class="adm-cab">
+        <h2 class="fg-h" id="h-revision">Revisión de registros</h2>
+        <a class="adm-accion" id="rev-excel" href="/api/admin/exportar.xlsx" download>Descargar respaldo en Excel</a>
+        <details class="fg-foot">
+          <summary>Instrucciones</summary>
+          <ul>
+            <li>Aquí apruebas lo que llega por la carga automática y corriges o eliminas lo que haga falta. Todos los registros cuentan en los indicadores, estén o no revisados.</li>
+            <li>Un registro revisado queda en solo lectura y en verde claro. Si le quitas la palomita se guarda al instante, la fila se vuelve editable y aparece Eliminar.</li>
+            <li>Un registro sin revisar toma el color de su situación: consistente, sin color; inconsistente, en amarillo claro; con error, en rojo tenue. La situación la fija el análisis automático; aquí solo se muestra.</li>
+            <li>Los cambios en una fila sin revisar se guardan con Guardar. Si el servidor encuentra algo raro, te lo muestra y tú decides si guardar de todos modos.</li>
+            <li>Aceptar consistentes marca como revisados y guarda, de un solo clic, los registros consistentes que siguen sin revisar en la tabla y el mes que estás viendo. Cada uno se revisa como si pulsaras Guardar sobre él: si cambiaste un dato y dejó de ser consistente, no se guarda, conserva tus cambios y te avisa al final. Mientras corre, la pantalla se bloquea.</li>
+          </ul>
+        </details>
+      </div>
+      <div id="adm-revision"></div>
+    </section>
+  </section>
+
+  <section class="fg-tab is-off" id="tab-usuarios" role="tabpanel" aria-labelledby="btn-usuarios">
+    <section class="fg-card" aria-labelledby="h-usuarios">
+      <div class="adm-cab">
+        <h2 class="fg-h" id="h-usuarios">Usuarios</h2>
+        <details class="fg-foot">
+          <summary>Instrucciones</summary>
+          <ul>
+            <li>Un usuario activo está bloqueado: inactívalo para editarlo y vuelve a activarlo al terminar.</li>
+            <li>La contraseña nunca se muestra y se pide dos veces al guardarla.</li>
+            <li>Para activar un usuario deben estar completos su nombre, su perfil y su contraseña.</li>
+            <li>Los usuarios no se borran, solo se inactivan. Siempre debe quedar al menos un administrador activo.</li>
+          </ul>
+        </details>
+      </div>
+      <div id="adm-usuarios"></div>
+    </section>
   </section>
   </div>
 </div>
 </div>
+<dialog id="adm-dialogo" class="fg-dialog"></dialog>
 <script src="vendor/d3.min.js"></script>
 <script src="shim.js"></script>
 <script src="page.js"></script>
+<script src="admin.js"></script>
 </body>
 </html>

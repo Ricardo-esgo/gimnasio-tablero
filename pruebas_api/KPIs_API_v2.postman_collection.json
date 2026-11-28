@@ -1,0 +1,376 @@
+{
+ "info": {
+  "name": "KPIs Gimnasio - API de carga (v2)",
+  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+  "description": "Variables: base_url (ej. http://ricnas-syslinux.tail95bb82.ts.net:8080), token_escritura, token_lectura. La API SOLO agrega registros nuevos y consulta; no modifica ni borra (eso se hace en el tablero, pantalla Revisión). Todo lo que carga queda sin revisar. Un cierre trae UN registro con sus 5 montos; el total lo calcula la base."
+ },
+ "variable": [
+  {
+   "key": "base_url",
+   "value": "http://localhost:8080"
+  },
+  {
+   "key": "token_escritura",
+   "value": "PEGA_AQUI_API_TOKEN_ESCRITURA"
+  },
+  {
+   "key": "token_lectura",
+   "value": "PEGA_AQUI_API_TOKEN_LECTURA"
+  }
+ ],
+ "item": [
+  {
+   "name": "Salud (sin clave)",
+   "request": {
+    "method": "GET",
+    "header": [],
+    "url": {
+     "raw": "{{base_url}}/salud",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "salud"
+     ]
+    }
+   }
+  },
+  {
+   "name": "Estado de la base",
+   "request": {
+    "method": "GET",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_lectura}}",
+      "type": "text"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/estado",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "estado"
+     ],
+     "query": []
+    },
+    "description": ""
+   }
+  },
+  {
+   "name": "Agregar un cierre de ingresos",
+   "request": {
+    "method": "POST",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_escritura}}",
+      "type": "text"
+     },
+     {
+      "key": "Content-Type",
+      "value": "application/json"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/ingresos",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "ingresos"
+     ],
+     "query": []
+    },
+    "description": "Responde agregado. Si lo reenvías igual: sin_cambios. Con otros montos y el mismo id_origen: 409. Si ya hay otro cierre de la misma fecha y turno: 409.",
+    "body": {
+     "mode": "raw",
+     "raw": "{\n  \"fecha\": \"2026-11-28\",\n  \"turno\": \"M\",\n  \"personal\": \"Jeremy\",\n  \"mem_efectivo\": 1450,\n  \"mem_electronico\": 0,\n  \"mer_efectivo\": 72,\n  \"mer_electronico\": 30,\n  \"excedente\": -4,\n  \"id_origen\": \"msg-ingresos-0001\",\n  \"estado\": \"verde\",\n  \"observaciones\": null,\n  \"fuente\": {\n    \"chat\": \"ingresos\",\n    \"mensajes\": [\n      \"IMG-1\",\n      \"IMG-2\"\n    ]\n  }\n}",
+     "options": {
+      "raw": {
+       "language": "json"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "Agregar un gasto",
+   "request": {
+    "method": "POST",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_escritura}}",
+      "type": "text"
+     },
+     {
+      "key": "Content-Type",
+      "value": "application/json"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/egresos",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "egresos"
+     ],
+     "query": []
+    },
+    "description": "id_origen es obligatorio en egresos (por ejemplo el id del mensaje del chat). Categoría nueva o posible duplicado: se carga y queda en amarillo con la advertencia.",
+    "body": {
+     "mode": "raw",
+     "raw": "{\n  \"fecha\": \"2026-11-28\",\n  \"personal\": \"Ricardo\",\n  \"tipo\": \"Insumos\",\n  \"concepto\": \"Cloro y trapeadores\",\n  \"efectivo\": 320.5,\n  \"electronico\": 0,\n  \"id_origen\": \"msg-egresos-0001\",\n  \"estado\": \"verde\"\n}",
+     "options": {
+      "raw": {
+       "language": "json"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "Lote mezclado (todo o nada)",
+   "request": {
+    "method": "POST",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_escritura}}",
+      "type": "text"
+     },
+     {
+      "key": "Content-Type",
+      "value": "application/json"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/registros",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "registros"
+     ],
+     "query": []
+    },
+    "description": "Hasta 200 registros. Si uno falla no se escribe ninguno.",
+    "body": {
+     "mode": "raw",
+     "raw": "[\n  {\n    \"fecha\": \"2026-11-28\",\n    \"turno\": \"V\",\n    \"personal\": \"Jeremy\",\n    \"mem_efectivo\": 1450,\n    \"mem_electronico\": 0,\n    \"mer_efectivo\": 72,\n    \"mer_electronico\": 30,\n    \"excedente\": -4,\n    \"id_origen\": \"msg-ingresos-0002\",\n    \"estado\": \"verde\",\n    \"observaciones\": null,\n    \"fuente\": {\n      \"chat\": \"ingresos\",\n      \"mensajes\": [\n        \"IMG-1\",\n        \"IMG-2\"\n      ]\n    },\n    \"tabla\": \"ingresos\"\n  },\n  {\n    \"fecha\": \"2026-11-28\",\n    \"personal\": \"Ricardo\",\n    \"tipo\": \"Insumos\",\n    \"concepto\": \"Papel\",\n    \"efectivo\": 320.5,\n    \"electronico\": 0,\n    \"id_origen\": \"msg-egresos-0002\",\n    \"estado\": \"verde\",\n    \"tabla\": \"egresos\"\n  }\n]",
+     "options": {
+      "raw": {
+       "language": "json"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "Error a propósito: campo no permitido (revisado)",
+   "request": {
+    "method": "POST",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_escritura}}",
+      "type": "text"
+     },
+     {
+      "key": "Content-Type",
+      "value": "application/json"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/ingresos",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "ingresos"
+     ],
+     "query": []
+    },
+    "description": "Responde 422: la aprobación solo se hace en la pantalla Revisión.",
+    "body": {
+     "mode": "raw",
+     "raw": "{\n  \"fecha\": \"2026-11-28\",\n  \"turno\": \"M\",\n  \"personal\": \"Jeremy\",\n  \"mem_efectivo\": 1450,\n  \"mem_electronico\": 0,\n  \"mer_efectivo\": 72,\n  \"mer_electronico\": 30,\n  \"excedente\": -4,\n  \"id_origen\": \"x\",\n  \"estado\": \"verde\",\n  \"observaciones\": null,\n  \"fuente\": {\n    \"chat\": \"ingresos\",\n    \"mensajes\": [\n      \"IMG-1\",\n      \"IMG-2\"\n    ]\n  },\n  \"revisado\": 1\n}",
+     "options": {
+      "raw": {
+       "language": "json"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "Error a propósito: intentar borrar",
+   "request": {
+    "method": "DELETE",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_escritura}}",
+      "type": "text"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/ingresos/1",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "ingresos",
+      "1"
+     ],
+     "query": []
+    },
+    "description": "Responde 405: la API no borra."
+   }
+  },
+  {
+   "name": "Error a propósito: intentar modificar",
+   "request": {
+    "method": "PUT",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_escritura}}",
+      "type": "text"
+     },
+     {
+      "key": "Content-Type",
+      "value": "application/json"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/ingresos/1",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "ingresos",
+      "1"
+     ],
+     "query": []
+    },
+    "description": "Responde 405: la API no modifica.",
+    "body": {
+     "mode": "raw",
+     "raw": "{\n  \"mem_efectivo\": 1\n}",
+     "options": {
+      "raw": {
+       "language": "json"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "Consultar ingresos de un mes",
+   "request": {
+    "method": "GET",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_lectura}}",
+      "type": "text"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/ingresos?mes=2026-11",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "ingresos"
+     ],
+     "query": [
+      {
+       "key": "mes",
+       "value": "2026-11"
+      }
+     ]
+    },
+    "description": ""
+   }
+  },
+  {
+   "name": "Consultar egresos de un mes",
+   "request": {
+    "method": "GET",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_lectura}}",
+      "type": "text"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/egresos?mes=2026-11",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "egresos"
+     ],
+     "query": [
+      {
+       "key": "mes",
+       "value": "2026-11"
+      }
+     ]
+    },
+    "description": ""
+   }
+  },
+  {
+   "name": "Últimas cargas (bitácora)",
+   "request": {
+    "method": "GET",
+    "header": [
+     {
+      "key": "Authorization",
+      "value": "Bearer {{token_lectura}}",
+      "type": "text"
+     }
+    ],
+    "url": {
+     "raw": "{{base_url}}/api/v1/bitacora",
+     "host": [
+      "{{base_url}}"
+     ],
+     "path": [
+      "api",
+      "v1",
+      "bitacora"
+     ],
+     "query": []
+    },
+    "description": ""
+   }
+  }
+ ]
+}

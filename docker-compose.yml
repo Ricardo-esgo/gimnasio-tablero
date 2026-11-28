@@ -5,20 +5,25 @@ services:
     pull_policy: always
     container_name: tablero-gimnasio
     restart: unless-stopped
-    # Usuario con el que corre el contenedor. Debe poder LEER la carpeta del Excel.
-    user: "${PUID:-1000}:${PGID:-100}"
+    # Usuario con el que corre el contenedor. Debe poder LEER Y ESCRIBIR la carpeta de datos.
+    user: "${PUID:-1007}:${PGID:-1007}"
     ports:
       - "${PUERTO:-8080}:8080"
     environment:
-      EXCEL_DIR: /datos                              # ruta dentro del contenedor (no se cambia)
-      EXCEL_FILE: ${EXCEL_ARCHIVO:-Data_Base.xlsx}   # nombre del archivo Excel
-      SESSION_SECRET: ${SESSION_SECRET:-}            # texto largo y secreto; sin él, las sesiones se cierran al reiniciar
+      DB_DIR: /datos                                   # ruta dentro del contenedor (no se cambia)
+      DB_FILE: ${DB_ARCHIVO:-kpis.db}                  # nombre de la base de datos
+      EXCEL_INICIAL: /datos/${EXCEL_ARCHIVO:-Data_Base.xlsx}   # solo se usa la primera vez, si la base está vacía
+      SESSION_SECRET: ${SESSION_SECRET:-}              # texto largo y secreto; sin él, las sesiones se cierran al reiniciar
       SESSION_HORAS: ${SESSION_HORAS:-12}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}         # true si entras por HTTPS
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}           # true si entras por HTTPS
+      API_TOKEN_ESCRITURA: ${API_TOKEN_ESCRITURA:-}    # clave para cargar cierres y gastos por la API; vacía = API apagada
+      API_TOKEN_LECTURA: ${API_TOKEN_LECTURA:-}        # clave opcional solo para consultar
+      RESPALDO_HORAS: ${RESPALDO_HORAS:-24}
+      RESPALDOS_CONSERVAR: ${RESPALDOS_CONSERVAR:-14}
       TZ: ${TZ:-America/Mexico_City}
     volumes:
-      # Ruta de la CARPETA (no del archivo) donde vive el Excel en el servidor. Obligatoria.
-      - ${EXCEL_RUTA_HOST:?Define EXCEL_RUTA_HOST en el archivo .env (carpeta donde está el Excel)}:/datos:ro
+      # CARPETA del servidor donde vive la base (y donde está el Excel inicial). Obligatoria y con permiso de escritura.
+      - ${DATOS_RUTA_HOST:?Define DATOS_RUTA_HOST en el archivo .env (carpeta de datos del servidor)}:/datos
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/salud', timeout=3)"]
       interval: 30s

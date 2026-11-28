@@ -1,160 +1,183 @@
-# Tablero financiero del gimnasio
+# Tablero financiero del gimnasio (con base de datos)
 
-Contenedor que lee un archivo Excel y muestra el tablero (Indicador de performance con Resumen ejecutivo, Resumen anual, Ingresos relativos, Detalle de ventas y Detalle de gastos, más la pestaña Metas) detrás de un login.
-No usa base de datos: **el Excel se lee de nuevo cada vez que se genera un gráfico** y la página lo consulta sola
-cada 15 segundos, así que lo que guardes en el Excel aparece en el tablero sin reiniciar nada.
+Un solo contenedor con tres cosas: el **tablero** (Indicador de performance y Metas), la **base de datos SQLite** donde viven los cierres, gastos, metas y usuarios,
+y una **API** para dar de alta cierres y gastos nuevos (la usará el lector de los chats). El Excel deja de ser la fuente: se usa una sola vez para llenar la base y después
+se genera **un respaldo en Excel** cuando lo necesites.
+
+## Qué guarda la base (`kpis.db`)
+
+| Tabla | Columnas |
+|---|---|
+| `ingresos` (un registro por cierre) | fecha, turno, personal, mem_efectivo, mem_electronico, mer_efectivo, mer_electronico, excedente, **total** (la base lo calcula: suma de los cinco montos; el excedente puede ser negativo), **revisado** (0 = pendiente, 1 = aprobado), **estado** (semáforo de la situación: `verde` consistente, `amarillo` inconsistencia leve, `rojo` grave) |
+| `egresos` | fecha, personal, tipo, concepto, efectivo, electronico, **total** (calculado), **revisado**, **estado** (igual que en ingresos) |
+| `metas` | periodo (`estandar` o AAAA-MM), meta_ingresos, meta_socios, notas, lectura |
+| `usuarios` | user, pass (SHA-256), perfil (`admin` o `user`), activo (1 o 0) |
+| `bitacora`, `historial` | apoyo: de dónde vino cada registro cargado por la API (observaciones y mensajes de origen) y qué había antes de cada cambio hecho en pantalla |
+
+Una base creada con una versión anterior se actualiza sola al arrancar (agrega `estado`, conserva el semáforo que ya traía la bitácora y deja anotada la versión del esquema).
+
+Todos los registros cuentan para los indicadores, estén revisados o no. Lo revisado solo indica que ya lo aprobó un administrador.
+
+## Quién ve qué
+
+- **Cualquier usuario activo**: Indicador de performance y Metas (solo lectura).
+- **Perfil `admin`**: además **Revisión**, **Usuarios**, edición de **Metas** y el botón *Descargar respaldo en Excel* (en Revisión, a la izquierda de «Instrucciones»).
+
+### Revisión
+Combos **Tabla** («Cierre de caja» o «Gasto») y **Mes** (por omisión cierres de caja y el último mes). Cada fila termina con la palomita **Revisado**:
+
+- **Color de la fila**: *revisado* siempre es verde claro, sin importar su semáforo. *Sin revisar* toma el color de su `estado`: verde = sin color, amarillo = amarillo claro, rojo = rojo tenue.
+  La columna **Situación** escribe el estado con su nombre: verde = «consistente», amarillo = «inconsistente», rojo = «error» (en la base y la API se guardan como verde / amarillo / rojo; no depende solo del color) y, en amarillo o rojo, la observación del análisis aparece debajo de la fila.
+  El `estado` lo fija la carga automática: en pantalla solo se muestra. Quitar o poner la revisión no lo cambia, y un registro capturado a mano nace `verde`.
+- **Distribución**: el título «Revisión de registros» lleva a su derecha la etiqueta **Instrucciones** (plegada), que no se mueve; al abrirla, el texto aparece debajo del título. Las columnas miden lo que su dato necesita (sin repartir el sobrante) y ninguna celda se parte en dos renglones. Turno y Tipo llevan además campos sin la flecha de lista: la lista de sugerencias aparece al escribir (o con la flecha ↓ del teclado). La tabla tiene un alto máximo de ~20 renglones con scroll propio; el encabezado y el pie (conteo y suma) quedan fijos. Lo mismo aplica a Usuarios para las instrucciones.
+- **Mostrar revisados** (casilla, marcada por omisión): muestra todo el mes. Desmarcada, oculta las filas ya revisadas y deja solo las no revisadas; el pie dice «N de M registros» y la suma sigue lo visible.
+- **Aceptar consistentes** (acción de texto con una palomita ✓, junto a la casilla). A su derecha, en la misma barra, **Agregar cierre** / **Agregar gasto** con el mismo estilo de texto, sin palomita: marca como revisados y guarda, de un clic, todos los registros **verdes sin revisar** de la tabla y el mes que estás viendo.
+  A cada uno se le hace lo mismo que al pulsar su Guardar con la palomita puesta, con los datos que tenga en pantalla (incluidos tus cambios sin guardar): si el servidor
+  encuentra un error o una advertencia, ese registro **no se guarda**, conserva tus cambios y su motivo queda bajo la fila; al final aparece la alerta «No fue posible guardar todos debido a inconsistencias en sus datos».
+  Si todos son consistentes se guardan sin alerta. Mientras corre, la pantalla se bloquea con cursor de espera. Los amarillos y rojos nunca se aceptan en masa.
+- Revisado = solo lectura. Si le **quitas la palomita**, se guarda al instante, la fila se vuelve editable y aparece **Eliminar**.
+- Una fila editable no se guarda hasta pulsar **Guardar**. En ingresos se editan turno, membresías, mercancías y excedente; el total se recalcula solo.
+  La fecha y el personal se capturan solo al crear el registro.
+- **Agregar cierre / Agregar gasto** pone una fila nueva al final. Mínimo: fecha, turno, personal y total distinto de 0 (puede ser negativo). Una fila nueva puede guardarse ya como revisada.
+- Al guardar, el servidor revisa inconsistencias (ya existe un cierre de esa fecha y turno, fecha futura o de hace más de 400 días, montos negativos o muy altos, turno que no es M/V/TM/TD,
+  personal o categoría nunca vistos, posible gasto duplicado). Si hay, muestra la lista y **tú decides** si guardar de todos modos.
+- **Eliminar** pide confirmación y solo existe en filas sin revisar. Se borra de forma definitiva (queda copia de lo que había en `historial`).
+
+### Regla de «mes completo»
+- Un mes es **completo** cuando sus gastos incluyen **Nómina y Renta** y además **todos sus cierres de caja están revisados**. Si no, el resultado del mes y del año se muestran como *provisionales* (con nota que explica la causa).
+- Los gastos sin revisar no entran en la regla; solo los cierres. `egresos_mensual` trae `cierres_sin_revisar` por mes (viene de `kpis.py`).
+
+### Usuarios
+- Un usuario **activo** no se edita: primero se **inactiva** (pide confirmación). Los usuarios **no se borran**, solo se inactivan.
+- La contraseña **nunca se muestra**. En un usuario editable puedes escribir una nueva; al guardar pide escribirla otra vez y, si no coinciden, no se guarda.
+  Se almacena como SHA-256. Mínimo 8 caracteres.
+- Para activar a alguien deben estar completos nombre, perfil y contraseña. Un usuario inactivo sí puede guardarse incompleto.
+- No puedes inactivar tu propio usuario ni dejar el sistema sin un administrador activo. Un usuario inactivado pierde el acceso en su siguiente consulta.
+  Consecuencia: **un admin no puede cambiar su propia contraseña**; la cambia otro admin (por eso conviene tener dos).
+
+### Metas
+Los admins editan una fila por periodo (`estandar` o AAAA-MM); no se borran, se deja vacía la meta que no aplique.
+
+## La API de carga (`/api/v1`)
+
+Solo **agrega** registros nuevos y consulta. No modifica ni borra: eso se hace en la pantalla Revisión.
+Cada petición lleva `Authorization: Bearer <API_TOKEN_ESCRITURA>` (o la de lectura, solo para consultar).
+
+| Método y ruta | Qué hace |
+|---|---|
+| `POST /api/v1/ingresos` | Un cierre (objeto) o varios (lista, o `{"registros":[...]}`) |
+| `POST /api/v1/egresos` | Un gasto o varios |
+| `POST /api/v1/registros` | Lote mezclado (cada uno con `"tabla":"ingresos"` o `"egresos"`) |
+| `GET /api/v1/ingresos?mes=AAAA-MM`, `/egresos?mes=`, `/bitacora`, `/estado` | Consultas |
+
+Cierre: `fecha, turno, personal, mem_efectivo, mem_electronico, mer_efectivo, mer_electronico, excedente`
+(+ opcionales `id_origen, estado (verde|amarillo|rojo; por omisión verde), observaciones, fuente`). `estado` se guarda en la propia fila y las consultas `GET /api/v1/ingresos` y `/egresos` lo devuelven. Gasto: `fecha, personal, tipo, concepto, efectivo, electronico` y `id_origen` obligatorio.
+
+- **Todo o nada**: un lote con un error no escribe nada (422 con la lista de errores). Máximo 200 registros.
+- **Idempotente**: reenviar el mismo `id_origen` con los mismos datos responde `sin_cambios`. Con otros datos, 409 (se corrige en Revisión).
+  Si el registro se eliminó en Revisión, tampoco se vuelve a cargar (409). En ingresos, si no mandas `id_origen` se usa `fecha|turno`.
+- Un cierre de una fecha y turno que ya existen se rechaza (409); en pantalla, en cambio, es una advertencia que puedes aceptar.
+- Los registros cargados entran **sin revisar**. Si tienen advertencias (categoría nueva, posible duplicado, etc.) se cargan igual y quedan en **amarillo** con la observación (si ya venían en rojo, siguen en rojo).
+- Campos desconocidos, `total` o `revisado` → 422. `PUT`, `PATCH` y `DELETE` → 405.
+- Se bloquea 60 s una dirección tras 5 claves incorrectas.
+
+Para probar sin escribir código: importa `pruebas_api/KPIs_API_v2.postman_collection.json` en Postman (variables `base_url`, `token_escritura`, `token_lectura`),
+o corre `python3 pruebas_api/simular_dia.py http://IP-DEL-NAS:8080 TU_TOKEN`.
+
+## Respaldos y Excel
+
+- Al arrancar y cada `RESPALDO_HORAS` (24) horas se guardan en `respaldos/` (dentro de tu carpeta de datos) una copia consistente `kpis-FECHA.db`
+  y un Excel `kpis-FECHA.xlsx`; se conservan los últimos `RESPALDOS_CONSERVAR` (14) de cada uno.
+- El Excel es **una hoja por tabla, tal cual están en la base** (mismos nombres de tabla y de columna, valores sin convertir, `total` incluido; las columnas DATE salen como fechas).
+  Es dinámico: si más adelante agregas o renombras columnas o tablas, el respaldo las sigue sin tocar el código.
+- El botón del tablero descarga el Excel **sin la hoja de usuarios** (no entregan contraseñas al navegador). Los del disco sí la llevan: guarda esa carpeta como lo que es, información sensible.
+- Para volver a un respaldo: detén el contenedor, borra `kpis.db`, `kpis.db-wal` y `kpis.db-shm`, copia el `.db` del respaldo como `kpis.db` y arranca.
+
+## Pasar del Excel a la base (primera vez)
+
+1. En la carpeta de datos (`DB_KPIS`) deja tu `Data_Base.xlsx` (el original no se modifica nunca).
+2. La carpeta debe poder **escribirse** por el usuario del contenedor. Por SSH: `chown -R 1007:1007 /ruta/DB_KPIS` (o ajusta `PUID`/`PGID`).
+3. En `.env`: `DATOS_RUTA_HOST` (antes `EXCEL_RUTA_HOST`), `API_TOKEN_ESCRITURA`, `API_TOKEN_LECTURA` (opcional) y el resto como antes.
+4. Publica la imagen (ver abajo) y arranca: `docker compose pull && docker compose up -d`.
+5. Con la base vacía, el contenedor la llena solo desde el Excel y deja el informe en `docker compose logs tablero`: cierres, gastos y metas importados,
+   cierres que sumaban 0 (se omiten) y las filas cuyo Total no cuadraba. **Los usuarios conservan su contraseña**; Ricardo queda `admin` y los demás `user`.
+6. Entra y compara el tablero contra el que ya tenías. Con tus datos actuales, la comparación contra el lector del Excel dio lo mismo salvo tres diferencias esperadas:
+   - Las Consultas (\$70 del 2026-01-24, turno M) ahora cuentan como **membresías** (antes eran "Otros ingresos").
+   - Un cierre (2026-04-13 V) traía un Total de \$129 más que Efectivo + Electrónico; ahora el total se calcula y esa diferencia desaparece.
+   - Ya no existen filas sueltas de excedente: el excedente va dentro de cada cierre.
+   Además, Columna1, Columna2 y la hoja EDO FINANCIERO no se importan (los KPIs hacen esos cálculos).
+
+Para volver a cargar desde el Excel (borra lo que haya en la base, previo respaldo): `docker exec -it tablero-gimnasio python importar.py /datos/Data_Base.xlsx /datos/kpis.db --reemplazar`.
 
 ## Despliegue: GitHub → imagen → servidor
 
-El flujo es: subes el código a GitHub, GitHub Actions compila la imagen y la publica en GitHub Container Registry (ghcr.io),
-y el servidor solo descarga esa imagen con `docker compose`. En el servidor no hay código ni se compila nada.
+El flujo es el de siempre: subes el código a GitHub, GitHub Actions compila la imagen y la publica en ghcr.io, y el servidor solo la descarga con `docker compose`.
 
-### 1. Subir el proyecto a GitHub (una sola vez)
+1. Sube estos archivos a tu repositorio (`git add . && git commit && git push`). El `.gitignore` excluye `.env`, los Excel y las bases `.db`: ni tus claves ni tus datos se suben.
+2. Espera a que termine la acción **Publicar imagen** (pestaña Actions).
+3. En el servidor, en la carpeta de Compose, deja `docker-compose.yml` y tu `.env` (a partir de `.env.example`) y ejecuta `docker compose pull && docker compose up -d`.
+4. Abre `http://IP-DEL-SERVIDOR:8080`.
+5. Versiones fijas: `git tag v2.0.0 && git push origin v2.0.0` y usa `IMAGEN=ghcr.io/tu-usuario/gimnasio-tablero:2.0.0` para poder regresar a una anterior.
 
-1. En GitHub crea un repositorio vacío, por ejemplo `gimnasio-tablero` (puede ser privado).
-2. Desde la carpeta del proyecto:
-   ```
-   git init -b main
-   git add .
-   git commit -m "Tablero financiero del gimnasio"
-   git remote add origin git@github.com:TU-USUARIO/gimnasio-tablero.git
-   git push -u origin main
-   ```
-   El `.gitignore` ya excluye `.env` y los archivos Excel: ni tus contraseñas ni tus datos se suben al repositorio.
-3. Entra a la pestaña **Actions** del repositorio. El flujo "Publicar imagen" se ejecuta solo con ese primer push
-   (tarda unos minutos). Si falla con un permiso, ve a *Settings → Actions → General → Workflow permissions* y elige **Read and write permissions**.
-4. Al terminar, la imagen queda en `ghcr.io/tu-usuario/gimnasio-tablero:latest` (todo en minúsculas). La verás en la sección **Packages** de tu perfil o del repositorio.
-
-### 2. Dejar que el servidor descargue la imagen
-
-Elige una de las dos:
-
-- **Imagen pública (lo más simple).** En GitHub: *Packages → gimnasio-tablero → Package settings → Change visibility → Public*.
-  La imagen solo contiene el código del tablero: no lleva el Excel, ni usuarios, ni contraseñas.
-- **Imagen privada.** Crea un token en GitHub (*Settings → Developer settings → Personal access tokens → Tokens (classic)*)
-  con el permiso `read:packages` y, en el servidor, inicia sesión una vez:
-  ```
-  echo TU_TOKEN | docker login ghcr.io -u TU-USUARIO --password-stdin
-  ```
-
-### 3. Configurar y arrancar en el servidor
-
-1. Crea una carpeta para el despliegue, por ejemplo `/srv/dev-disk-by-uuid-XXXX/compose/gimnasio`, y copia ahí solo `docker-compose.yml` y `.env.example`.
-2. Renombra `.env.example` a `.env` y completa:
-   - `IMAGEN`: la ruta de la imagen publicada, por ejemplo `ghcr.io/tu-usuario/gimnasio-tablero:latest`.
-   - `EXCEL_RUTA_HOST`: **carpeta** del servidor donde está el Excel (la carpeta, no el archivo).
-   - `EXCEL_ARCHIVO`: nombre del archivo (por defecto `Data_Base.xlsx`).
-   - `SESSION_SECRET`: un texto largo y secreto (por ejemplo, `openssl rand -hex 32`).
-3. Arranca:
-   ```
-   docker compose up -d
-   ```
-4. Abre `http://IP-DEL-SERVIDOR:8080` (o el `PUERTO` que definas).
-
-Se monta la **carpeta** y no el archivo porque Excel y LibreOffice guardan creando un archivo nuevo; si montaras
-solo el archivo, el contenedor seguiría viendo la versión vieja. La carpeta se monta de solo lectura: el tablero nunca modifica el Excel.
-
-Si el contenedor no puede leer la carpeta ("Permission denied" en `docker compose logs`), ajusta `PUID` y `PGID` en `.env`
-a un usuario y grupo con permiso de lectura sobre esa carpeta.
-
-### 4. Publicar cambios y actualizar
-
-- Cada `git push` a `main` vuelve a publicar la etiqueta `latest`. En el servidor: `docker compose pull && docker compose up -d`.
-- Para versiones fijas, crea una etiqueta: `git tag v1.0.1 && git push origin v1.0.1`. Se publican `1.0.1`, `1.0` y `latest`
-  (la última solo desde `main`). Así puedes poner `IMAGEN=ghcr.io/tu-usuario/gimnasio-tablero:1.0.1` y volver a una versión anterior cuando quieras.
-- Las etiquetas con el código corto del commit (`sha-abc1234`) también se publican, por si necesitas una compilación exacta.
-
-### Probar en tu computadora sin GitHub
-
-```
-docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
-```
+Probar en tu computadora sin GitHub: `docker compose -f docker-compose.yml -f docker-compose.local.yml up --build`.
 
 ## Variables de entorno
 
-| Variable (.env) | Dentro del contenedor | Para qué sirve |
-|---|---|---|
-| `IMAGEN` (obligatoria) | — | Imagen publicada en GitHub que descarga el servidor |
-| `EXCEL_RUTA_HOST` (obligatoria) | se monta en `/datos` | Carpeta del servidor donde está el Excel |
-| `EXCEL_ARCHIVO` | `EXCEL_FILE` | Nombre del archivo Excel (por defecto `Data_Base.xlsx`) |
-| `SESSION_SECRET` | `SESSION_SECRET` | Firma las sesiones. Si falta, las sesiones se cierran al reiniciar |
-| `SESSION_HORAS` | `SESSION_HORAS` | Duración de la sesión (por defecto 12) |
-| `COOKIE_SECURE` | `COOKIE_SECURE` | `true` si entras por HTTPS |
-| `PUERTO` | — | Puerto publicado en el servidor (por defecto 8080) |
-| `PUID` / `PGID` | — | Usuario y grupo con que corre el contenedor |
-
-## Formato del Excel
-
-Hojas que se leen, por nombre exacto:
-
-- **Detalle Ingresos**: encabezados `Fecha`, `Turno`, `tipo`, `Efectivo`, `Electronico`, `Total` (se buscan por nombre en las primeras filas).
-  Los ingresos de los resúmenes usan `Total` si trae valor; si no, `Efectivo + Electronico`. Tipos: `membrecias`/`membresias`, `mercancias`, `Consultas`;
-  cualquier otro tipo (por ejemplo `excedente`) cuenta como "Otros".
-  El tablero **Detalle de ventas** usa las columnas `Efectivo` y `Electronico` de cada venta (celda vacía = 0). Si en una fila `Total` es mayor que
-  `Efectivo + Electronico`, esa diferencia no se puede clasificar y el tablero la avisa como "sin desglosar".
-  Ese mismo tablero tiene el combo **Segregar por**: *Tipo de pago* (efectivo / electrónico) o *Turno*, que usa la columna `Turno`:
-  `M` = matutino y `V` = vespertino. Cualquier otro código (por ejemplo `TM`, `TD`) o una celda de turno vacía se agrupa como
-  "Otros turnos", que solo aparece en los meses que los traen. La columna `Turno` es opcional: sin ella, todo cae en "Otros turnos".
-- **Detalle Egresos**: encabezados `Fecha`, `tipo`, `Efectivo`, `Electronico`, `Total`. Las categorías son **las que escribas en la columna `tipo`**:
-  se muestran y se grafican con ese mismo nombre, sean cuales sean y las que se agreguen después (no hay lista fija). Solo se unifican las que difieren
-  en mayúsculas, acentos o espacios (`NOMINA` = `Nómina`). Un mes se considera "completo" cuando tiene `Nómina` y `Renta`.
-  **Gastos operativos** = `Nómina`, `Renta`, `Servicios`, `Insumos` y `Mercancía` (se reconocen con cualquier mayúscula/acento). Todo lo demás
-  (Infraestructura, Máquinas…) son **gastos de expansión**. El check **Incluir gastos de expansión** del Resumen ejecutivo y del Resumen anual decide si el resultado,
-  la gráfica y el semáforo restan todos los gastos (activo) o solo los operativos (apagado). El tablero **Detalle de gastos** siempre muestra los dos grupos.
-- **Metas**: encabezados `Periodo`, `Meta ingresos`, `Meta socios`. `Periodo` es `Estándar` (una fila) o el mes como texto `AAAA-MM`.
-  Meta vacía = ese mes usa la estándar. Si un mes se repite, vale la última fila. Las metas se cambian **solo en el Excel**; la pestaña Metas del tablero las muestra.
-- **Usuarios**: columnas `user` y `pass`. En `pass` va el **SHA-256 de la contraseña**, no la contraseña.
-
-### Estado de los gastos de un mes
-
-El tablero marca el resultado de un mes como definitivo o provisional según si los gastos están completos. Se decide así:
-
-- `sin captura`: el mes no tiene gastos, o suman 0.
-- `completo`: el mes tiene gasto de **Nómina** y de **Renta**.
-- `parcial`: hay gastos, pero falta Nómina o Renta.
-
-Además, el mes en curso siempre es provisional.
-
-### Contraseñas (SHA-256)
-
-El hash es el SHA-256 de la contraseña en UTF-8, sin sal, en hexadecimal (64 caracteres; mayúsculas o minúsculas dan igual).
-
-```
-python3 app/generar_hash.py            # pide la contraseña sin mostrarla
-printf '%s' 'mi-clave' | sha256sum     # en Linux
-```
-
-Formatea la columna `pass` como **Texto** para que Excel no convierta un hash a número. Un usuario cuyo valor no sea un SHA-256 válido no puede entrar
-(el aviso aparece en `docker compose logs`). Si quitas un usuario de la hoja, pierde el acceso en su siguiente consulta.
-
-Guarda el Excel con Excel o LibreOffice: guardan los valores calculados de las fórmulas. Un archivo escrito por herramientas que no los guardan
-(por ejemplo, una librería de programación) se lee con celdas vacías donde había fórmulas.
+| Variable (.env) | Para qué sirve |
+|---|---|
+| `IMAGEN` (obligatoria) | Imagen publicada en GitHub |
+| `DATOS_RUTA_HOST` (obligatoria) | Carpeta del servidor con la base, los respaldos y el Excel inicial. Con permiso de escritura |
+| `EXCEL_ARCHIVO` | Excel con el que se llena la base la primera vez (por omisión `Data_Base.xlsx`) |
+| `DB_ARCHIVO` | Nombre de la base (por omisión `kpis.db`) |
+| `SESSION_SECRET` | Firma las sesiones. Si falta, se cierran al reiniciar |
+| `API_TOKEN_ESCRITURA` / `API_TOKEN_LECTURA` | Claves de la API. Sin la de escritura, la API de carga está apagada |
+| `SESSION_HORAS`, `COOKIE_SECURE`, `PUERTO`, `TZ` | Duración de sesión, HTTPS, puerto publicado, zona horaria |
+| `RESPALDO_HORAS`, `RESPALDOS_CONSERVAR` | Frecuencia y cantidad de respaldos (0 horas = sin respaldos) |
+| `PUID` / `PGID` | Usuario y grupo del contenedor (en tu servidor, 1007:1007) |
 
 ## Seguridad
 
-- Los datos de ingresos y gastos solo se entregan a quien tiene sesión; la validación del usuario y la contraseña se hace en el servidor.
-- La sesión va en una cookie firmada, `HttpOnly` y `SameSite=Strict`. Cinco intentos fallidos desde una misma dirección bloquean el acceso un minuto.
-- El contenedor sirve HTTP. Si el tablero se abre fuera de tu red local, ponle delante un proxy con HTTPS y define `COOKIE_SECURE=true`; si no, la contraseña viaja sin cifrar.
-- El hash sin sal de una contraseña corta se puede adivinar por fuerza bruta si alguien obtiene el Excel. Usa contraseñas largas y distintas para cada usuario.
+- Los datos solo se entregan a quien tiene sesión; el usuario se vuelve a comprobar contra la base en cada consulta. Las funciones de administración se validan en el servidor, no solo se esconden en la pantalla.
+- Sesión en cookie firmada, `HttpOnly` y `SameSite=Strict`; las operaciones que envían datos exigen contenido JSON. Cinco intentos fallidos de login desde una dirección la bloquean un minuto.
+- La API usa claves distintas a las contraseñas y se bloquea tras claves incorrectas. No expongas el puerto a Internet: úsalo en tu red o por Tailscale. Si abres el tablero fuera, ponle delante un proxy con HTTPS y `COOKIE_SECURE=true`.
+- El hash SHA-256 sin sal de una contraseña corta se puede adivinar si alguien obtiene la base. Usa contraseñas largas y distintas.
+- Cada alta, cambio y eliminación hecha en pantalla o por API queda en la tabla `historial` con usuario, hora y lo que había antes.
 
 ## Mantenimiento
 
-- Ver mensajes: `docker compose logs -f tablero` (lectura inicial, avisos del Excel, inicios de sesión correctos y fallidos).
-- Actualizar el tablero: `docker compose pull && docker compose up -d`.
-- Revisar que está vivo: `http://IP:8080/salud`.
+- Mensajes: `docker compose logs -f tablero`. Salud: `http://IP:8080/salud`. Actualizar: `docker compose pull && docker compose up -d`.
+- La base usa el modo WAL: junto a `kpis.db` verás `kpis.db-wal` y `kpis.db-shm`. Son normales; no los borres con el contenedor encendido.
+- Pruebas: `cd app && python -m unittest test_v2 -v` (reglas, API, usuarios, exportación, concurrencia, equivalencia con el lector del Excel) y, con el servidor encendido, `node test_e2e.js` (navegador real).
+
+## Límites conocidos
+
+- Un administrador no cambia su propia contraseña (lo hace otro admin).
+- No hay pantalla para borrar metas ni usuarios (a propósito).
+- El tablero no distingue revisado de no revisado en los indicadores.
+- Los cierres con más de un personal en el Excel viejo se importaron con el personal que más filas tenía.
 
 ## Estructura
 
 ```
-docker-compose.yml          el que se usa en el servidor (descarga la imagen)
-docker-compose.local.yml    solo para compilar y probar en tu computadora
+docker-compose.yml           el que se usa en el servidor (descarga la imagen)
+docker-compose.local.yml     solo para compilar y probar en tu computadora
 .env.example
-.github/workflows/
-  publicar-imagen.yml        compila y publica la imagen en ghcr.io
+.github/workflows/publicar-imagen.yml
+pruebas_api/                 colección de Postman y simulador de un día de carga
+test_e2e.js                  prueba con navegador real
 app/
-  Dockerfile
-  servidor.py        servidor HTTP, login y API
-  lector_excel.py    lectura del Excel
-  generar_hash.py    ayuda para crear el SHA-256 de una contraseña
-  web/               el tablero (HTML, CSS, JS y d3)
+  servidor.py     servidor HTTP: tablero, sesiones por perfil, pantallas admin, API, respaldos
+  bd.py           esquema SQLite, conexión, respaldo
+  datos.py        reglas: validación, advertencias, edición/bloqueo, usuarios, metas, alta por API
+  kpis.py         lee de la base lo que usa el tablero
+  importar.py     carga inicial desde el Excel
+  exportar.py     respaldo en Excel genérico (una hoja por tabla)
+  lector_excel.py solo lo usa importar.py
+  generar_hash.py ayuda para crear un SHA-256 de contraseña (ya no hace falta para uso normal)
+  web/            el tablero (HTML, CSS, JS y d3) y admin.js (Revisión, Usuarios, Metas)
+  test_v2.py      pruebas
 ```
+
+## Cambiar el ícono de la pestaña
+El ícono sale de tres archivos en `app/web/`: `favicon.svg` (el principal), `favicon-32.png` y `apple-touch-icon.png` (180×180 px). Reemplázalos conservando el nombre, haz commit y espera la imagen nueva.
+Si el navegador no lo cambia, recarga con Ctrl+F5.
